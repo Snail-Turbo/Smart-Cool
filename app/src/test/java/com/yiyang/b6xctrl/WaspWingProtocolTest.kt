@@ -52,11 +52,11 @@ class WaspWingProtocolTest {
     }
 
     @Test
-    fun shutdownCommands_usesB6xManualAndOff() {
+    fun shutdownCommands_usesB6xManualLowest() {
+        // B6X 无软件停机，停机 = 最低档 4500 + 制冷 178
         val cmds = WaspWingProtocol.shutdownCommands()
+        assertEquals(1, cmds.size)
         assertArrayEquals(byteArrayOf(0x23, 0xB2.toByte(), 0x2D, 0x00), cmds[0])
-        assertArrayEquals(byteArrayOf(0x25, 0x01), cmds[1])
-        assertArrayEquals(byteArrayOf(0x26, 0x01), cmds[2])
     }
 
     @Test
