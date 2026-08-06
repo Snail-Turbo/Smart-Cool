@@ -55,14 +55,16 @@ object WaspWingProtocol {
         return out
     }
 
-    /** 实验预设：名称 → hex（wind/cold 默认用 140=0x8C 便于对照） */
+    /** 实验预设：名称 → hex（B6X 手动模式命令为 4 字节，风速控制值 4500~5500） */
     val experimentPresets: List<Pair<String, String>> = listOf(
-        "手动A(短) 22 8C 8C" to "22 8C 8C",
-        "手动B(4字节) 22 00 8C 8C" to "22 00 8C 8C",
-        "手动C(6字节) 22 8C 00 8C 00 00" to "22 8C 00 8C 00 00",
-        "手动D(长9字节) 22 8C 01 8C 00 00 28 00 00" to "22 8C 01 8C 00 00 28 00 00",
+        // B6X 手动命令 0x22 为 4 字节（官方 setRunMode 长度 i17=4，布局待实机标定）
+        "手动4B-A 22 0C 2D 00(目标12+风速45)" to "22 0C 2D 00",
+        "手动4B-B 22 2D 00 0C(风速45+目标12)" to "22 2D 00 0C",
+        "手动4B-C 22 00 2D 00(风速45)" to "22 00 2D 00",
+        "手动4B-D 22 2D 00 00" to "22 2D 00 00",
+        // 参考：智能变频 21 xx
         "智能变频 21 12(目标18°C)" to "21 12",
-        "超频 23 8C 8C" to "23 8C 8C",
+        // 标准开关命令（B5 系列同款，B6X 可能被忽略）
         "关风扇 25 00" to "25 00",
         "关制冷 26 00" to "26 00",
         "灯开 10 FF" to "10 FF",
@@ -85,9 +87,9 @@ object WaspWingProtocol {
     private const val REASONABLE_MAX = 120f
 
     /** B6 布局（实测确认是 B6X 实际使用的布局，来自逆向 B6 分支）：
-     *  [1]=ipType [2]=冷面温度(有符号) [3]=小数 [4]=模式字节(0/2，含义待标定)
-     *  [5]=超频可用(==255) [6]*100+[18]=风速档(4500=最低) [7]=制冷档 [8]=灯(==255)
-     *  [9]=目标温度 [10..11]=转速RPM(大端16位 = [11]*256+[10]，实测验证)
+     *  [1]=ipType [2]=冷面温度(有符号) [3]=小数 [4]=模式(0=智能 2=手动[B6X] 3=实验 4=自定义)
+     *  [5]=超频可用(==255) [6]*100+[18]=风速控制值(4500=最低~5500=最高) [7]=制冷档
+     *  [8]=灯(==255) [9]=目标温度 [10..11]=转速 = [11]*100+[10]（官方 B6 分支原文）
      *  [14]=风速运行档 [15]=制冷运行档 [16]=热面温度 [17]=保护位 */
     private fun parseB6Layout(data: ByteArray): DeviceStatus {
         val b = { i: Int -> data[i].toInt() and 0xFF }
@@ -97,9 +99,9 @@ object WaspWingProtocol {
         val coldLevel = b(7)
         val lightOn = b(8) == 0xFF
         val targetTemp = b(9)
-        // 逆向代码原文：setSpeed((value[11]<<8) + value[10])，即大端16位
-        // 用户实测验证：13 00 05 03 02 FF 2D B2 00 0C BC 11 ... → 17*256+188=4540RPM ✅
-        val speedRpm = if (data.size > 11) (b(11) shl 8) + b(10) else 0
+        // 官方 B6 分支原文：setSpeed((value[11] * 100) + (value[10] & 255))
+        // 用户实测：13 00 05 03 02 FF 2D B2 00 0C BC 11 ... → 17*100+188 = 1888
+        val speedRpm = if (data.size > 11) b(11) * 100 + b(10) else 0
         val windRunLevel = if (data.size > 14) b(14) else 0
         val coldRunLevel = if (data.size > 15) b(15) else 0
         val hotTempC = if (data.size > 16) data[16].toFloat() else Float.NaN

@@ -37,13 +37,13 @@ private fun fmtTemp(v: Float?): String =
     if (v == null || v.isNaN() || v.isInfinite()) "--"
     else "%.1f".format(v)
 
-/** 运行模式名称（[4] 字节含义待标定：实测用户手动最低速时读到 0 和 2 两种值） */
+/** 运行模式名称（B6/B6X 官方映射：0=智能 2=手动 3=实验智能 4=自定义；1=旧版手动） */
 private fun runModeName(mode: Int): String = when (mode) {
-    0 -> "模式0(待标定)"
-    1 -> "模式1"
-    2 -> "模式2"
-    3 -> "模式3"
-    4 -> "模式4"
+    0 -> "智能变频"
+    1 -> "手动(旧)"
+    2 -> "手动"
+    3 -> "智能变频丨专家"
+    4 -> "自定义"
     else -> "未知($mode)"
 }
 
