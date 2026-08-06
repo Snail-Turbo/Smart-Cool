@@ -87,8 +87,13 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 ui.ble.deviceStatus?.let { s ->
                     Text(
                         "模式 ${runModeName(s.runMode)} | 冷面 ${fmtTemp(s.coldTempC)}°C | " +
-                            "热面 ${fmtTemp(s.hotTempC)}°C | 速度值 ${s.speedRpm}",
+                            "热面 ${fmtTemp(s.hotTempC)}°C",
                         style = MaterialTheme.typography.bodyMedium,
+                    )
+                    // 分开显示两个速度相关字段，避免混淆
+                    Text(
+                        "风速档 ${s.windLevel}（范围4500~5500） | 转速值 ${s.speedRpm}",
+                        style = MaterialTheme.typography.bodySmall,
                     )
                     Text(
                         "制冷档 ${s.coldLevel} | 目标温 ${s.targetTemp}°C | 灯 ${if (s.lightOn) "亮" else "灭"}",
@@ -220,7 +225,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     }
 }
 
-/** 实验面板：发送原始 hex 命令，校准 B6X 手动模式(0x22)等命令布局 */
+/** 实验面板：发送原始 hex 命令，校准 B6X 手动模式(0x23)等命令布局 */
 @Composable
 private fun ExperimentPanel(viewModel: MainViewModel) {
     var hexInput by remember { mutableStateOf("") }
@@ -233,15 +238,21 @@ private fun ExperimentPanel(viewModel: MainViewModel) {
         ) {
             Text("实验功能（校准协议用）", style = MaterialTheme.typography.titleSmall)
             Text(
-                "点按钮发送后，看上面\"状态包\"的 runMode（第3字节高4位）是否变化。" +
-                    "把结果反馈给我即可校准正确命令。",
+                "怎么验证：点下方按钮发送后，看连接卡片里「模式」是否变成【手动】、" +
+                    "「风速档」是否变化。反馈这些数字给我即可校准。",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                "说明：0x23 是 B6X 手动命令，4 字节：23 <制冷档> <风速档/100> <风速档%100>。" +
+                    "风速档范围 4500~5500（4500=最低）。注意：上面的「转速值」和「风速档」是两个不同字段。" +
+                    "25/26 开关命令对 B6X 可能无效（那是 B3/B5 系列的）。",
                 style = MaterialTheme.typography.bodySmall,
             )
 
             OutlinedTextField(
                 value = hexInput,
                 onValueChange = { hexInput = it },
-                label = { Text("自定义 hex（如 22 8C 8C）") },
+                label = { Text("自定义 hex（如 23 B2 2D 00）") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
