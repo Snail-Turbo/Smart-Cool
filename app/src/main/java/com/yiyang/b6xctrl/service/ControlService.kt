@@ -52,9 +52,12 @@ class ControlService : Service() {
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
-    private val binder = object : Binder() {
+    /** 供 UI 绑定的 Binder，暴露服务实例 */
+    inner class LocalBinder : Binder() {
         val service: ControlService get() = this@ControlService
     }
+
+    private val binder = LocalBinder()
 
     override fun onCreate() {
         super.onCreate()
