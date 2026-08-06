@@ -4,78 +4,71 @@ import com.yiyang.b6xctrl.protocol.WaspWingProtocol
 
 enum class ThermalState { OFF, RUNNING }
 
+/** 4 档温控曲线控制器（PC 风扇式）：
+ *  温度达到某档阈值即切到该档，档位变化才下发命令（避免重复刷）。 */
 class ThermalController(config: ControlConfig) {
 
     private var config: ControlConfig = config
 
-    var state: ThermalState = ThermalState.OFF
+    /** 当前所处档位索引（0=A 待机档） */
+    var currentLevelIndex: Int = 0
         private set
-    var currentWindLevel: Int = config.baseWindLevel
+    var currentWindLevel: Int = config.levels.first().wind
         private set
-    var currentColdLevel: Int = config.baseColdLevel
+    var currentColdLevel: Int = config.levels.first().cold
         private set
 
-    /** 初始/刚进入 OFF 时是否已确认下发关闭命令（保证设备真正停机） */
-    private var shutdownPending = true
+    /** 是否已执行过首次下发（保证即使首帧就在 0 档，也会发一次命令同步设备状态） */
+    private var initialized = false
 
-    /** 输入系统温度(°C)，返回需要下发的命令列表（可能为空）。 */
+    val state: ThermalState
+        get() = if (currentLevelIndex == 0) ThermalState.OFF else ThermalState.RUNNING
+
+    /** 输入系统温度(°C)，返回需要下发的命令列表（档位变化或首次时才有内容）。 */
     fun onTemperature(tempC: Float): List<ByteArray> {
-        return when (state) {
-            ThermalState.OFF -> {
-                if (tempC >= config.startTemp) {
-                    state = ThermalState.RUNNING
-                    shutdownPending = false
-                    applyLevels(tempC)
-                } else if (shutdownPending) {
-                    shutdownPending = false
-                    WaspWingProtocol.shutdownCommands()
-                } else {
-                    emptyList()
-                }
-            }
-            ThermalState.RUNNING -> {
-                if (tempC <= config.stopTemp) {
-                    state = ThermalState.OFF
-                    shutdownPending = false
-                    WaspWingProtocol.shutdownCommands()
-                } else {
-                    applyLevelsIfChanged(tempC)
-                }
-            }
+        val idx = pickLevelIndex(tempC)
+        if (!initialized) {
+            initialized = true
+        } else if (idx == currentLevelIndex) {
+            return emptyList()
         }
+        currentLevelIndex = idx
+        val lvl = config.levels[idx]
+        currentWindLevel = lvl.wind
+        currentColdLevel = lvl.cold
+        return listOf(WaspWingProtocol.manualModeCommand(lvl.wind, lvl.cold))
     }
 
-    /** 手动模式：直接设风速控制值(4500~6000)与制冷档（B6X 用 0x23 手动命令）。
-     *  同时同步自动状态机，避免手动/自动脱钩。 */
+    /** 手动模式：直接设风速控制值(4000~6000)与制冷档（B6X 用 0x23 手动命令）。 */
     fun onManualLevels(windLevel: Int, coldLevel: Int): List<ByteArray> {
         currentWindLevel = windLevel.coerceIn(WIND_MIN, WIND_MAX)
         currentColdLevel = coldLevel.coerceIn(COLD_MIN, COLD_MAX)
         return listOf(
             WaspWingProtocol.manualModeCommand(currentWindLevel, currentColdLevel),
-            WaspWingProtocol.setFanOn(true),
-            WaspWingProtocol.setCoolOn(true),
         )
     }
 
-    /** 手动模式：仅开关。 */
+    /** 手动模式：仅开关。关闭 = 最低档（A 档待机）。 */
     fun onManualPower(on: Boolean): List<ByteArray> {
         if (on) {
             return listOf(
                 WaspWingProtocol.manualModeCommand(currentWindLevel, currentColdLevel),
-                WaspWingProtocol.setFanOn(true),
-                WaspWingProtocol.setCoolOn(true),
             )
         }
-        return WaspWingProtocol.shutdownCommands()
+        val a = config.levels.first()
+        currentLevelIndex = 0
+        currentWindLevel = a.wind
+        currentColdLevel = a.cold
+        return listOf(WaspWingProtocol.manualModeCommand(a.wind, a.cold))
     }
 
     companion object {
         /** B6X 风速控制值范围（用户自定：最低4000避免停转，最高6000） */
         const val WIND_MIN = 4000
         const val WIND_MAX = 6000
-        /** B6X 制冷档范围（用户上限178，官方手动178/200） */
+        /** B6X 制冷档范围（用户 5 档曲线用到 200） */
         const val COLD_MIN = 1
-        const val COLD_MAX = 178
+        const val COLD_MAX = 200
         const val COLD_RECOMMENDED = 178
     }
 
@@ -84,32 +77,12 @@ class ThermalController(config: ControlConfig) {
         config = newConfig
     }
 
-    private fun applyLevels(tempC: Float): List<ByteArray> {
-        currentWindLevel = mapLevel(tempC, config.windMap, config.baseWindLevel)
-        currentColdLevel = mapLevel(tempC, config.coldMap, config.baseColdLevel)
-        return listOf(
-            WaspWingProtocol.manualModeCommand(currentWindLevel, currentColdLevel),
-            WaspWingProtocol.setFanOn(true),
-            WaspWingProtocol.setCoolOn(true),
-        )
-    }
-
-    private fun applyLevelsIfChanged(tempC: Float): List<ByteArray> {
-        val wind = mapLevel(tempC, config.windMap, config.baseWindLevel)
-        val cold = mapLevel(tempC, config.coldMap, config.baseColdLevel)
-        if (wind == currentWindLevel && cold == currentColdLevel) return emptyList()
-        currentWindLevel = wind
-        currentColdLevel = cold
-        return listOf(
-            WaspWingProtocol.manualModeCommand(wind, cold),
-        )
-    }
-
-    private fun mapLevel(tempC: Float, map: List<Pair<Float, Int>>, base: Int): Int {
-        var level = base
-        for ((threshold, value) in map) {
-            if (tempC >= threshold) level = value
+    /** 选择温度所属档位：最后一个阈值 ≤ 温度的档；低于第一档阈值 → 第 0 档 */
+    private fun pickLevelIndex(tempC: Float): Int {
+        var idx = 0
+        config.levels.forEachIndexed { i, lvl ->
+            if (tempC >= lvl.thresholdC) idx = i
         }
-        return level
+        return idx
     }
 }
