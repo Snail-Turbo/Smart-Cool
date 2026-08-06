@@ -92,7 +92,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     )
                     // 分开显示两个速度相关字段，避免混淆
                     Text(
-                        "风速档 ${s.windLevel}（范围4500~5500） | 转速值 ${s.speedRpm}",
+                        "风速档 ${s.windLevel}（范围4500~6000） | 转速值 ${s.speedRpm}",
                         style = MaterialTheme.typography.bodySmall,
                     )
                     Text(
@@ -244,7 +244,7 @@ private fun ExperimentPanel(viewModel: MainViewModel) {
             )
             Text(
                 "说明：0x23 是 B6X 手动命令，4 字节：23 <制冷档> <风速档/100> <风速档%100>。" +
-                    "风速档范围 4500~5500（4500=最低）。注意：上面的「转速值」和「风速档」是两个不同字段。" +
+                    "风速档范围 4500~6000（4500=最低，6000=最高）。注意：上面的「转速值」和「风速档」是两个不同字段。" +
                     "25/26 开关命令对 B6X 可能无效（那是 B3/B5 系列的）。",
                 style = MaterialTheme.typography.bodySmall,
             )

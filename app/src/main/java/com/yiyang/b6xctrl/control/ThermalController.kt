@@ -45,7 +45,7 @@ class ThermalController(config: ControlConfig) {
         }
     }
 
-    /** 手动模式：直接设风速控制值(4500~5500)与制冷档（B6X 用 0x23 手动命令）。
+    /** 手动模式：直接设风速控制值(4500~6000)与制冷档（B6X 用 0x23 手动命令）。
      *  同时同步自动状态机，避免手动/自动脱钩。 */
     fun onManualLevels(windLevel: Int, coldLevel: Int): List<ByteArray> {
         currentWindLevel = windLevel.coerceIn(WIND_MIN, WIND_MAX)
