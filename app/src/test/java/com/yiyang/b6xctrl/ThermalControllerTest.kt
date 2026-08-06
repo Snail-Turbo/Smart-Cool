@@ -28,8 +28,8 @@ class ThermalControllerTest {
     fun hotTemp_startsWithMappedLevels() {
         val c = ThermalController(config)
         val cmds = c.onTemperature(50f)
-        // 50°C ≥ 48 断点 → 风速 4800 制冷 190，风扇/制冷开
-        assertTrue(cmds.has(byteArrayOf(0x23, 0xBE.toByte(), 0x30, 0x00))) // 23 BE 30 00 = 风速4800 冷190
+        // 50°C ≥ 48 断点 → 风速 5000(0x32) 制冷 160(0xA0)
+        assertTrue(cmds.has(byteArrayOf(0x23, 0xA0.toByte(), 0x32, 0x00))) // 23 A0 32 00 = 风速5000 冷160
         assertTrue(cmds.has(byteArrayOf(0x25, 0x00)))
         assertTrue(cmds.has(byteArrayOf(0x26, 0x00)))
         assertEquals(ThermalState.RUNNING, c.state)
@@ -75,7 +75,7 @@ class ThermalControllerTest {
         val c = ThermalController(config)
         c.onTemperature(50f)
         val cmds = c.onTemperature(62f)
-        // 62°C ≥60 断点 → 风速6000(0x3C) 制冷205(0xCD) = 23 CD 3C 00
-        assertTrue(cmds.has(byteArrayOf(0x23, 0xCD.toByte(), 0x3C, 0x00)))
+        // 62°C ≥60 断点 → 风速6000(0x3C) 制冷178(0xB2) = 23 B2 3C 00
+        assertTrue(cmds.has(byteArrayOf(0x23, 0xB2.toByte(), 0x3C, 0x00)))
     }
 }
