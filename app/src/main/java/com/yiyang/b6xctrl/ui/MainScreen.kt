@@ -87,7 +87,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 ui.ble.deviceStatus?.let { s ->
                     Text(
                         "模式 ${runModeName(s.runMode)} | 冷面 ${fmtTemp(s.coldTempC)}°C | " +
-                            "热面 ${fmtTemp(s.hotTempC)}°C | 转速 ${s.speedRpm} RPM",
+                            "热面 ${fmtTemp(s.hotTempC)}°C | 速度值 ${s.speedRpm}",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
