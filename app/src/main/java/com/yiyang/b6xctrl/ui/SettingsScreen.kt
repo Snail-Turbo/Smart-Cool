@@ -58,6 +58,9 @@ fun SettingsScreen(
     var tempSource by remember { mutableStateOf(cfg.tempSource) }
     var sourceExpanded by remember { mutableStateOf(false) }
 
+    // 出厂默认档位（恢复默认用）
+    val defaultLevels = remember { ControlConfig().levels }
+
     // 每档可编辑：阈值/制冷/风速（局部状态，保存时才提交）
     val levelStates = remember(cfg) {
         cfg.levels.map { lvl ->
@@ -125,11 +128,11 @@ fun SettingsScreen(
                         onValueChange = { st.threshold.floatValue = it },
                         valueRange = 20f..70f,
                     )
-                    Text("制冷档：${st.cold.floatValue.toInt()}（1~229）")
+                    Text("制冷档：${st.cold.floatValue.toInt()}（1~200）")
                     Slider(
                         value = st.cold.floatValue,
                         onValueChange = { st.cold.floatValue = it },
-                        valueRange = 1f..229f,
+                        valueRange = 1f..200f,
                     )
                     Text("风速：${st.wind.floatValue.toInt()}（4000~6000）")
                     Slider(
@@ -169,6 +172,20 @@ fun SettingsScreen(
                     onBack()
                 },
             ) { Text("保存") }
+            Spacer(Modifier.width(8.dp))
+            OutlinedButton(
+                onClick = {
+                    // 恢复出厂默认：重置各档编辑状态
+                    defaultLevels.forEachIndexed { i, def ->
+                        val st = levelStates[i]
+                        st.threshold.floatValue = def.thresholdC
+                        st.cold.floatValue = def.cold.toFloat()
+                        st.wind.floatValue = def.wind.toFloat()
+                    }
+                    interval = ControlConfig().sampleIntervalMs.toFloat()
+                    tempSource = TempSource.CPU_GPU_MAX
+                },
+            ) { Text("恢复默认") }
             Spacer(Modifier.width(8.dp))
             OutlinedButton(onClick = onBack) { Text("返回") }
         }
