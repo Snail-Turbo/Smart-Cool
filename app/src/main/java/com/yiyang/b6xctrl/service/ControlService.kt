@@ -20,6 +20,7 @@ import com.yiyang.b6xctrl.control.ThermalController
 import com.yiyang.b6xctrl.control.ThermalState
 import com.yiyang.b6xctrl.protocol.WaspWingProtocol
 import com.yiyang.b6xctrl.thermal.TempReader
+import com.yiyang.b6xctrl.thermal.TempSnapshot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -35,6 +36,7 @@ import kotlinx.coroutines.launch
 data class UiState(
     val ble: BleUiState = BleUiState(),
     val systemTempC: Float? = null,
+    val temps: TempSnapshot = TempSnapshot(),
     val thermalState: ThermalState = ThermalState.OFF,
     val autoMode: Boolean = true,
     val config: ControlConfig = ControlConfig(),
@@ -92,8 +94,9 @@ class ControlService : Service() {
         controlJob = scope.launch {
             while (isActive) {
                 val cfg = _uiState.value.config
-                val temp = tempReader.readMaxTempC()
-                _uiState.value = _uiState.value.copy(systemTempC = temp)
+                val snapshot = tempReader.readSnapshot()
+                val temp = snapshot.controlC
+                _uiState.value = _uiState.value.copy(systemTempC = temp, temps = snapshot)
 
                 if (_uiState.value.autoMode &&
                     _uiState.value.ble.connectionState == BleConnectionState.CONNECTED
