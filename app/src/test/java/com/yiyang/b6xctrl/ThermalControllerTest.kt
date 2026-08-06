@@ -19,8 +19,8 @@ class ThermalControllerTest {
     fun coldTemp_returnsShutdownCommands() {
         val c = ThermalController(config)
         val cmds = c.onTemperature(30f)
-        // B6X 无软件停机：停机 = 最低档 4500 + 冷 178（23 B2 2D 00）
-        assertTrue(cmds.has(byteArrayOf(0x23, 0xB2.toByte(), 0x2D, 0x00)))
+        // B6X 无软件停机：停机 = 平衡档 制冷40+风速4600（23 28 2E 00）
+        assertTrue(cmds.has(byteArrayOf(0x23, 0x28, 0x2E, 0x00)))
         assertEquals(ThermalState.OFF, c.state)
     }
 
@@ -28,8 +28,8 @@ class ThermalControllerTest {
     fun hotTemp_startsWithMappedLevels() {
         val c = ThermalController(config)
         val cmds = c.onTemperature(50f)
-        // 50°C ≥ 48 断点 → 风速 5000(0x32) 制冷 160(0xA0)
-        assertTrue(cmds.has(byteArrayOf(0x23, 0xA0.toByte(), 0x32, 0x00))) // 23 A0 32 00 = 风速5000 冷160
+        // 50°C ≥ 48 断点 → 风速 5000(0x32) 制冷 80(0x50)
+        assertTrue(cmds.has(byteArrayOf(0x23, 0x50, 0x32, 0x00))) // 23 50 32 00 = 风速5000 冷80
         assertTrue(cmds.has(byteArrayOf(0x25, 0x00)))
         assertTrue(cmds.has(byteArrayOf(0x26, 0x00)))
         assertEquals(ThermalState.RUNNING, c.state)
@@ -38,8 +38,8 @@ class ThermalControllerTest {
     @Test
     fun lowestBand_usesBaseWindLevel() {
         val c = ThermalController(config)
-        val cmds = c.onTemperature(43f) // ≥42 启动，<48 用基础档 4500/178
-        assertTrue(cmds.has(byteArrayOf(0x23, 0xB2.toByte(), 0x2D, 0x00))) // 23 B2 2D 00
+        val cmds = c.onTemperature(43f) // ≥42 启动，<48 用基础档 4600/40
+        assertTrue(cmds.has(byteArrayOf(0x23, 0x28, 0x2E, 0x00))) // 23 28 2E 00
         assertEquals(ThermalState.RUNNING, c.state)
     }
 
@@ -57,8 +57,8 @@ class ThermalControllerTest {
         val c = ThermalController(config)
         c.onTemperature(45f)
         val cmds = c.onTemperature(35f)
-        // B6X 无软件停机：降到最低档
-        assertTrue(cmds.has(byteArrayOf(0x23, 0xB2.toByte(), 0x2D, 0x00)))
+        // B6X 无软件停机：降到平衡档（4600/40）
+        assertTrue(cmds.has(byteArrayOf(0x23, 0x28, 0x2E, 0x00)))
         assertEquals(ThermalState.OFF, c.state)
     }
 

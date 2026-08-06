@@ -14,10 +14,10 @@ enum class TempSource(val label: String) {
 data class ControlConfig(
     val startTemp: Float = 42f,
     val stopTemp: Float = 36f,
-    val baseWindLevel: Int = 4500,
-    val baseColdLevel: Int = 178,
+    val baseWindLevel: Int = 4600,
+    val baseColdLevel: Int = 40,
     val windMap: List<Pair<Float, Int>> = listOf(48f to 5000, 54f to 5500, 60f to 6000),
-    val coldMap: List<Pair<Float, Int>> = listOf(48f to 160, 54f to 170, 60f to 178),
+    val coldMap: List<Pair<Float, Int>> = listOf(48f to 80, 54f to 130, 60f to 178),
     val sampleIntervalMs: Long = 2000,
     val tempSource: TempSource = TempSource.CPU_GPU_MAX,
 )
