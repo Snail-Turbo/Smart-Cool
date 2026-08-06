@@ -67,7 +67,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         // 连接状态卡片
