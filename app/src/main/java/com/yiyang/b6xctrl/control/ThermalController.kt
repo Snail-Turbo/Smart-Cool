@@ -70,12 +70,13 @@ class ThermalController(config: ControlConfig) {
     }
 
     companion object {
-        /** B6X 风速控制值范围 */
+        /** B6X 风速控制值范围（实测上限 6000） */
         const val WIND_MIN = 4500
-        const val WIND_MAX = 5500
-        /** B6X 制冷档范围（官方 178/200） */
-        const val COLD_MIN = 120
-        const val COLD_MAX = 200
+        const val WIND_MAX = 6000
+        /** B6X 制冷档范围（实测最高 229，推荐 205） */
+        const val COLD_MIN = 178
+        const val COLD_MAX = 229
+        const val COLD_RECOMMENDED = 205
     }
 
     /** 热更新配置（保留当前状态）。 */
