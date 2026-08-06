@@ -57,6 +57,8 @@ class TempReader(context: Context) {
 
         for (zone in zones) {
             val type = readZoneType(zone.absolutePath)?.lowercase(Locale.ROOT) ?: continue
+            // ⚠️ 跳过阈值/跳闸类传感器（cpu-hw-trip-0 固定报 105°C 并非实时温度）
+            if (type.contains("trip") || type.contains("crit") || type.contains("max") || type.contains("limit")) continue
             val temp = readZoneTempC(zone.absolutePath) ?: continue
             if (temp !in TEMP_MIN_C..TEMP_MAX_C) continue // 范围过滤，排除异常值
 
