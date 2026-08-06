@@ -43,40 +43,47 @@ class WaspWingProtocolTest {
     }
 
     @Test
-    fun parseStatus_parsesB6xLayout() {
+    fun parseStatus_parsesB6Layout() {
+        // B6 布局（实测 B6X 实际使用）：[2]=冷面 [3]=小数 [4]=runMode [5]=超频
+        // [6]*100+[18]=风速 [7]=制冷 [8]=灯 [9]=目标温 [11]*100+[10]=转速
+        // [14]=风运行 [15]=冷运行 [16]=热面
         val data = byteArrayOf(
             0x13,            // [0] 命令
             0x00,            // [1] ipType
-            0x10,            // [2] 高4位=1(手动) 低4位=0
-            0x8C.toByte(),   // [3] coldLevel=140
-            0x01, 0x2C,      // [4][5] windLevel=1*100+44=144
-            0x12,            // [6] targetTemp=18
-            0x18,            // [7] 冷面温度 +24
-            0x05,            // [8] 小数 5
-            0x28,            // [9] 热面温度 +40
-            0x8C.toByte(),   // [10] coldRunLevel=140
-            0x8C.toByte(),   // [11] windRunLevel=140
-            0x0F, 0xA0.toByte(), // [12][13] speed=15*100+160=1660 RPM
-            0xFF.toByte(),   // [14] lightState=255
-            0x01,            // [15] ledType
-            0x00,            // [16] quickSwitchRunMode
-            0x00,            // [17] protection
+            0x18,            // [2] 冷面温度 +24
+            0x05,            // [3] 小数 5
+            0x01,            // [4] runMode=1 手动
+            0xFF.toByte(),   // [5] 超频可用
+            0x2D,            // [6] 风速高 = 45
+            0x64,            // [7] 制冷档 100
+            0xFF.toByte(),   // [8] 灯亮
+            0x0C,            // [9] 目标温 12
+            0x0F,            // [10] 转速低 15
+            0x0A,            // [11] 转速高 10 → 10*100+15=1015
+            0x32,            // [12] 超频风速高
+            0x00,            // [13] 超频制冷
+            0x64,            // [14] 风运行 100
+            0x50,            // [15] 冷运行 80
+            0x21,            // [16] 热面 33
+            0x00,            // [17] 保护
+            0x00,            // [18] 风速低 = 0 → 45*100+0=4500
+            0x00,            // [19]
         )
         val s = WaspWingProtocol.parseStatus(data)!!
         assertEquals(1, s.runMode)
-        assertEquals(140, s.coldLevel)
-        assertEquals(144, s.windLevel)
-        assertEquals(18, s.targetTemp)
+        assertEquals(100, s.coldLevel)
+        assertEquals(4500, s.windLevel)
+        assertEquals(12, s.targetTemp)
         assertEquals(24.05f, s.coldTempC, 0.001f)
-        assertEquals(40f, s.hotTempC, 0.001f)
-        assertEquals(1660, s.speedRpm)
+        assertEquals(33f, s.hotTempC, 0.001f)
+        assertEquals(1015, s.speedRpm)
         assertEquals(true, s.lightOn)
     }
 
     @Test
     fun parseStatus_negativeColdTemp() {
-        // 有符号 byte：0xF6 = -10
-        val data = byteArrayOf(0x13, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0xF6.toByte(), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+        // 有符号 byte：0xF6 = -10，位于 [2]（B6 布局）
+        val data = byteArrayOf(0x13, 0x00, 0xF6.toByte(), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
         val s = WaspWingProtocol.parseStatus(data)!!
         assertEquals(-10f, s.coldTempC, 0.001f)
     }

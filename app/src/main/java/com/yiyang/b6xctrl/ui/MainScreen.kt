@@ -37,6 +37,16 @@ private fun fmtTemp(v: Float?): String =
     if (v == null || v.isNaN() || v.isInfinite()) "--"
     else "%.1f".format(v)
 
+/** 运行模式名称（B6 布局 byte[4]） */
+private fun runModeName(mode: Int): String = when (mode) {
+    0 -> "智能变频"
+    1 -> "手动"
+    2 -> "超频"
+    3 -> "智能变频丨专家"
+    4 -> "自定义"
+    else -> "未知($mode)"
+}
+
 @Composable
 fun MainScreen(viewModel: MainViewModel = viewModel()) {
     val ui by viewModel.uiState.collectAsState()
@@ -76,9 +86,13 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 }
                 ui.ble.deviceStatus?.let { s ->
                     Text(
-                        "冷面 ${fmtTemp(s.coldTempC)}°C | 热面 ${fmtTemp(s.hotTempC)}°C | " +
-                            "转速 ${s.speedRpm} RPM | 风速档 ${s.windLevel}",
+                        "模式 ${runModeName(s.runMode)} | 冷面 ${fmtTemp(s.coldTempC)}°C | " +
+                            "热面 ${fmtTemp(s.hotTempC)}°C | 转速 ${s.speedRpm} RPM",
                         style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        "制冷档 ${s.coldLevel} | 目标温 ${s.targetTemp}°C | 灯 ${if (s.lightOn) "亮" else "灭"}",
+                        style = MaterialTheme.typography.bodySmall,
                     )
                     ui.ble.lastRawHex?.let { hex ->
                         Text(
@@ -150,19 +164,34 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
         }
 
         if (!ui.autoMode) {
-            // 手动控制
-            val currentWind = ui.ble.deviceStatus?.windLevel ?: ui.config.baseWindLevel
-            Text(
-                "风速档：$currentWind（${WaspWingProtocol.WIND_LEVEL_MIN}~${WaspWingProtocol.WIND_LEVEL_MAX}）",
-                style = MaterialTheme.typography.labelMedium,
-            )
+            // 手动控制（0-100%，映射设备档位 120~255）
+            var windPercent by remember { mutableStateOf(50) }
+            var coldPercent by remember { mutableStateOf(50) }
+            val windLevel = 120 + ((255 - 120) * windPercent / 100)
+            val coldLevel = 120 + ((255 - 120) * coldPercent / 100)
+            ui.ble.deviceStatus?.let { s ->
+                Text(
+                    "当前模式：${runModeName(s.runMode)}",
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+            Text("风扇速度：$windPercent%", style = MaterialTheme.typography.labelMedium)
             Slider(
-                value = currentWind.coerceIn(
-                    WaspWingProtocol.WIND_LEVEL_MIN,
-                    WaspWingProtocol.WIND_LEVEL_MAX,
-                ).toFloat(),
-                onValueChange = { viewModel.setManualWindLevel(it.toInt()) },
-                valueRange = WaspWingProtocol.WIND_LEVEL_MIN.toFloat()..WaspWingProtocol.WIND_LEVEL_MAX.toFloat(),
+                value = windPercent.toFloat(),
+                onValueChange = {
+                    windPercent = it.toInt()
+                    viewModel.setManualWindLevel(120 + ((255 - 120) * windPercent / 100))
+                },
+                valueRange = 0f..100f,
+            )
+            Text("制冷强度：$coldPercent%", style = MaterialTheme.typography.labelMedium)
+            Slider(
+                value = coldPercent.toFloat(),
+                onValueChange = {
+                    coldPercent = it.toInt()
+                    viewModel.setManualColdLevel(120 + ((255 - 120) * coldPercent / 100))
+                },
+                valueRange = 0f..100f,
             )
             Row {
                 Button(onClick = { viewModel.setManualPower(true) }, modifier = Modifier.weight(1f)) {

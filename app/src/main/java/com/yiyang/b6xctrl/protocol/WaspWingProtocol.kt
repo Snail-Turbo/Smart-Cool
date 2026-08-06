@@ -72,20 +72,48 @@ object WaspWingProtocol {
     /** 从 0x13 状态包解析设备状态；非 0x13 包返回 null */
     fun parseStatus(data: ByteArray): DeviceStatus? {
         if (data.isEmpty() || data[0].toInt() != 0x13) return null
-        // B6X 与 B6 布局偏移不同：优先选择解析结果温度合理的那一个
-        val b6x = parseB6xLayout(data)
+        // 实测确认：B6X 固件实际使用 B6 布局（byte[2]=冷面温度 11~14°C 合理，
+        // 而 B6X 布局把 byte[7]=0x7D 当温度会错读出 125°C）。
+        // 解析 B6 布局，若结果异常则回退 B6X 布局。
         val b6 = parseB6Layout(data)
-        val b6xOk = b6x.coldTempC in REASONABLE_MIN..REASONABLE_MAX
-        val b6Ok = b6.coldTempC in REASONABLE_MIN..REASONABLE_MAX
-        return when {
-            b6xOk && !b6Ok -> b6x
-            !b6xOk && b6Ok -> b6
-            else -> b6x // 默认 B6X 布局
-        }
+        if (b6.coldTempC in REASONABLE_MIN..REASONABLE_MAX) return b6
+        val b6x = parseB6xLayout(data)
+        return if (b6x.coldTempC in REASONABLE_MIN..REASONABLE_MAX) b6x else b6
     }
 
     private const val REASONABLE_MIN = -40f
     private const val REASONABLE_MAX = 120f
+
+    /** B6 布局（实测确认是 B6X 实际使用的布局，来自逆向 B6 分支）：
+     *  [1]=ipType [2]=冷面温度(有符号) [3]=小数 [4]=runMode(0智能/1手动/2超频/4自定义)
+     *  [5]=超频可用(==255) [6]*100+[18]=风速档(4500=最低) [7]=制冷档 [8]=灯(==255)
+     *  [9]=目标温度 [11]*100+[10]=转速RPM [14]=风速运行档 [15]=制冷运行档
+     *  [16]=热面温度 [17]=保护位 */
+    private fun parseB6Layout(data: ByteArray): DeviceStatus {
+        val b = { i: Int -> data[i].toInt() and 0xFF }
+        val coldTempC = data[2].toInt() + (b(3) / 100.0f)
+        val runMode = b(4)
+        val windLevel = if (data.size > 18) b(6) * 100 + b(18) else b(6) * 100
+        val coldLevel = b(7)
+        val lightOn = b(8) == 0xFF
+        val targetTemp = b(9)
+        val speedRpm = if (data.size > 11) (b(11) * 100) + b(10) else 0
+        val windRunLevel = if (data.size > 14) b(14) else 0
+        val coldRunLevel = if (data.size > 15) b(15) else 0
+        val hotTempC = if (data.size > 16) data[16].toFloat() else Float.NaN
+        return DeviceStatus(
+            runMode = runMode,
+            coldLevel = coldLevel,
+            windLevel = windLevel,
+            targetTemp = targetTemp,
+            coldTempC = coldTempC,
+            hotTempC = hotTempC,
+            coldRunLevel = coldRunLevel,
+            windRunLevel = windRunLevel,
+            speedRpm = speedRpm,
+            lightOn = lightOn,
+        )
+    }
 
     /** B6X 布局（逆向文档 §5.1）：byte[7]=冷面、byte[9]=热面、byte[12]*100+byte[13]=转速 */
     private fun parseB6xLayout(data: ByteArray): DeviceStatus {
@@ -109,32 +137,6 @@ object WaspWingProtocol {
             hotTempC = hotTempC,
             coldRunLevel = coldRunLevel,
             windRunLevel = windRunLevel,
-            speedRpm = speedRpm,
-            lightOn = lightOn,
-        )
-    }
-
-    /** B6 布局（逆向 WaspWingDataInteractionController B6 分支）：
-     *  byte[2]=冷面(有符号)、byte[4]=runMode、byte[6]=风速(单字节)、byte[7]=制冷、
-     *  byte[9]=目标温度、byte[10..11]=转速(大端16位) */
-    private fun parseB6Layout(data: ByteArray): DeviceStatus {
-        val b = { i: Int -> data[i].toInt() and 0xFF }
-        val coldTempC = data[2].toInt() + (b(3) / 100.0f)
-        val runMode = b(4)
-        val windLevel = b(6)
-        val coldLevel = b(7)
-        val lightOn = b(8) == 0xFF
-        val targetTemp = b(9)
-        val speedRpm = if (data.size > 11) (b(11) shl 8) + b(10) else 0
-        return DeviceStatus(
-            runMode = runMode,
-            coldLevel = coldLevel,
-            windLevel = windLevel,
-            targetTemp = targetTemp,
-            coldTempC = coldTempC,
-            hotTempC = Float.NaN, // B6 布局无热面温度
-            coldRunLevel = if (data.size > 15) b(15) else 0,
-            windRunLevel = if (data.size > 14) b(14) else 0,
             speedRpm = speedRpm,
             lightOn = lightOn,
         )
