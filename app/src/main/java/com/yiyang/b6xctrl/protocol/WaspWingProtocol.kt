@@ -30,6 +30,14 @@ object WaspWingProtocol {
     /** 灯开关 */
     fun setLightOn(on: Boolean): ByteArray = byteArrayOf(0x10, if (on) 0xFF.toByte() else 0x00)
 
+    /** 全关命令：档位降到最低 + 关风扇 + 关制冷（即使某个命令被忽略，功率也最小化） */
+    fun shutdownCommands(): List<ByteArray> = listOf(
+        setWindLevel(WIND_LEVEL_MIN),
+        setColdLevel(WIND_LEVEL_MIN),
+        setFanOn(false),
+        setCoolOn(false),
+    )
+
     /** 从 0x13 状态包解析设备状态；非 0x13 包返回 null */
     fun parseStatus(data: ByteArray): DeviceStatus? {
         if (data.isEmpty() || data[0].toInt() != 0x13) return null
@@ -112,5 +120,9 @@ object WaspWingProtocol {
         val windRunLevel: Int,
         val speedRpm: Int,
         val lightOn: Boolean,
-    )
+    ) {
+        /** 设备真实运行状态：转速 >0 或任一运行档 >0 即视为运行中 */
+        val isRunning: Boolean
+            get() = speedRpm > 0 || windRunLevel > 0 || coldRunLevel > 0
+    }
 }

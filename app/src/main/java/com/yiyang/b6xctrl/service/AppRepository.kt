@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.yiyang.b6xctrl.control.ControlConfig
+import com.yiyang.b6xctrl.control.TempSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -18,6 +19,7 @@ class AppRepository(private val context: Context) {
     private val keyInterval = intPreferencesKey("sample_interval_ms")
     private val keyBaseWind = intPreferencesKey("base_wind")
     private val keyBaseCold = intPreferencesKey("base_cold")
+    private val keyTempSource = intPreferencesKey("temp_source")
 
     val configFlow: Flow<ControlConfig> = context.dataStore.data.map { p ->
         ControlConfig(
@@ -26,6 +28,7 @@ class AppRepository(private val context: Context) {
             baseWindLevel = p[keyBaseWind] ?: 140,
             baseColdLevel = p[keyBaseCold] ?: 140,
             sampleIntervalMs = p[keyInterval]?.toLong() ?: 2000L,
+            tempSource = TempSource.entries.getOrElse(p[keyTempSource] ?: 0) { TempSource.CPU_GPU_MAX },
         )
     }
 
@@ -36,6 +39,7 @@ class AppRepository(private val context: Context) {
             p[keyInterval] = cfg.sampleIntervalMs.toInt()
             p[keyBaseWind] = cfg.baseWindLevel
             p[keyBaseCold] = cfg.baseColdLevel
+            p[keyTempSource] = cfg.tempSource.ordinal
         }
     }
 }

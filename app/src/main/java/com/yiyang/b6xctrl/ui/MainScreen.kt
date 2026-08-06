@@ -83,6 +83,20 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                         )
                     }
                 }
+                // 命令调试（最近发送）
+                if (ui.ble.lastSentCommands.isNotEmpty()) {
+                    Text(
+                        "最近命令: ${ui.ble.lastSentCommands.joinToString(" / ")}",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                if (ui.ble.hasSendError) {
+                    Text(
+                        "⚠️ 有命令发送失败（未连接或写特征缺失）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
         }
 
@@ -92,14 +106,26 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 Modifier.padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("系统温度", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    "系统温度（参考源：${ui.config.tempSource.label}）",
+                    style = MaterialTheme.typography.labelMedium,
+                )
                 Text(
                     ui.systemTempC?.let { "%.1f °C".format(it) } ?: "--",
                     style = MaterialTheme.typography.displayMedium,
                     fontWeight = FontWeight.Bold,
                 )
+                // 设备真实运行状态（来自 0x13 状态包） vs 控制目标（来自温度判断）
+                val deviceRunning = ui.ble.deviceStatus?.isRunning
+                val targetRunning = ui.thermalState.name == "RUNNING"
+                val runningText = when {
+                    deviceRunning == null -> "未知"
+                    deviceRunning -> "设备运行中"
+                    else -> "设备已停"
+                }
+                val targetText = if (targetRunning) "目标:启动" else "目标:停机"
                 Text(
-                    "温控状态：${if (ui.thermalState.name == "RUNNING") "运行中" else "已停机"} | " +
+                    "实际: $runningText | $targetText | " +
                         "root: ${if (ui.rootAvailable) "可用" else "未检测到"}",
                     style = MaterialTheme.typography.bodyMedium,
                 )
