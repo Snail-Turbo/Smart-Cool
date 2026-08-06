@@ -29,6 +29,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yiyang.b6xctrl.ble.BleConnectionState
 import com.yiyang.b6xctrl.protocol.WaspWingProtocol
 
+/** 温度格式化：null/NaN/越界显示 "--" */
+private fun fmtTemp(v: Float?): String =
+    if (v == null || v.isNaN() || v.isInfinite()) "--"
+    else "%.1f".format(v)
+
 @Composable
 fun MainScreen(viewModel: MainViewModel = viewModel()) {
     val ui by viewModel.uiState.collectAsState()
@@ -67,10 +72,16 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 }
                 ui.ble.deviceStatus?.let { s ->
                     Text(
-                        "冷面 ${"%.1f".format(s.coldTempC)}°C | 热面 ${"%.1f".format(s.hotTempC)}°C | " +
+                        "冷面 ${fmtTemp(s.coldTempC)}°C | 热面 ${fmtTemp(s.hotTempC)}°C | " +
                             "转速 ${s.speedRpm} RPM | 风速档 ${s.windLevel}",
                         style = MaterialTheme.typography.bodyMedium,
                     )
+                    ui.ble.lastRawHex?.let { hex ->
+                        Text(
+                            "状态包: $hex",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
             }
         }
@@ -91,6 +102,13 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     "温控状态：${if (ui.thermalState.name == "RUNNING") "运行中" else "已停机"} | " +
                         "root: ${if (ui.rootAvailable) "可用" else "未检测到"}",
                     style = MaterialTheme.typography.bodyMedium,
+                )
+                // 温度明细（学习 Scene 温度监视器：BAT/CPU/GPU/DDR/CAM）
+                val t = ui.temps
+                Text(
+                    "BAT ${fmtTemp(t.batteryC)} | CPU ${fmtTemp(t.cpuC)} | GPU ${fmtTemp(t.gpuC)} | " +
+                        "DDR ${fmtTemp(t.ddrC)} | CAM ${fmtTemp(t.camC)}",
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         }

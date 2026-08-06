@@ -95,7 +95,10 @@ class BleManager(context: Context) {
         ) {
             val value = characteristic.value ?: return
             WaspWingProtocol.parseStatus(value)?.let { status ->
-                _uiState.value = _uiState.value.copy(deviceStatus = status)
+                _uiState.value = _uiState.value.copy(
+                    deviceStatus = status,
+                    lastRawHex = value.joinToString(" ") { "%02X".format(it.toInt() and 0xFF) },
+                )
             }
         }
 
