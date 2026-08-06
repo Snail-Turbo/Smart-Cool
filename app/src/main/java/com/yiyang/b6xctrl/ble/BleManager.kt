@@ -168,16 +168,16 @@ class BleManager(context: Context) {
                 val char = writeCharacteristic
                 val hex = cmd.joinToString(" ") { "%02X".format(it.toInt() and 0xFF) }
                 if (g != null && char != null) {
-                    char.value = cmd
-                    char.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-                    val ok = try {
-                        g.writeCharacteristic(char)
-                    } catch (_: Exception) {
-                        false
+                    var ok = writeNoResponse(g, char, cmd)
+                    // NO_RESPONSE 高频写偶发返回 false（上一条未处理完），重试一次即可。
+                    // 注意：不可在主线程 sleep（ANR），直接重发。
+                    if (!ok) {
+                        ok = writeNoResponse(g, char, cmd)
                     }
+                    // hasSendError 表示「最近一次」发送状态：成功即清除，不粘滞。
                     _uiState.value = _uiState.value.copy(
                         lastSentCommands = (_uiState.value.lastSentCommands + hex).takeLast(6),
-                        hasSendError = _uiState.value.hasSendError || !ok,
+                        hasSendError = !ok,
                     )
                 } else {
                     // 未连接或写特征缺失：记录发送失败
@@ -194,5 +194,16 @@ class BleManager(context: Context) {
         gatt?.close()
         gatt = null
         writeCharacteristic = null
+    }
+
+    /** 以 NO_RESPONSE 写模式写一条命令；返回系统是否接受本次写入（主线程调用，不 sleep）。 */
+    private fun writeNoResponse(g: BluetoothGatt, char: BluetoothGattCharacteristic, cmd: ByteArray): Boolean {
+        return try {
+            char.value = cmd
+            char.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+            g.writeCharacteristic(char)
+        } catch (_: Exception) {
+            false
+        }
     }
 }
