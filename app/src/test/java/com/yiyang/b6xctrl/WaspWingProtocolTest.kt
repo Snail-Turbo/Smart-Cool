@@ -26,14 +26,37 @@ class WaspWingProtocolTest {
 
     @Test
     fun setFanOn_buildsCommand() {
-        assertArrayEquals(byteArrayOf(0x25, 0x01), WaspWingProtocol.setFanOn(true))
-        assertArrayEquals(byteArrayOf(0x25, 0x00), WaspWingProtocol.setFanOn(false))
+        // 官方极性（offOnWind）：on=true → 25 00，on=false → 25 01
+        assertArrayEquals(byteArrayOf(0x25, 0x00), WaspWingProtocol.setFanOn(true))
+        assertArrayEquals(byteArrayOf(0x25, 0x01), WaspWingProtocol.setFanOn(false))
     }
 
     @Test
     fun setCoolOn_buildsCommand() {
-        assertArrayEquals(byteArrayOf(0x26, 0x01), WaspWingProtocol.setCoolOn(true))
-        assertArrayEquals(byteArrayOf(0x26, 0x00), WaspWingProtocol.setCoolOn(false))
+        // 官方极性（offOnCold）：on=true → 26 00，on=false → 26 01
+        assertArrayEquals(byteArrayOf(0x26, 0x00), WaspWingProtocol.setCoolOn(true))
+        assertArrayEquals(byteArrayOf(0x26, 0x01), WaspWingProtocol.setCoolOn(false))
+    }
+
+    @Test
+    fun manualModeCommand_buildsB6xCommand() {
+        // B6X 手动 = 23 <冷档> <风速/100> <风速%100>，4 字节
+        assertArrayEquals(
+            byteArrayOf(0x23, 0xB2.toByte(), 0x2D, 0x00),
+            WaspWingProtocol.manualModeCommand(4500, 178),
+        )
+        assertArrayEquals(
+            byteArrayOf(0x23, 0xB2.toByte(), 0x37, 0x00),
+            WaspWingProtocol.manualModeCommand(5500, 178),
+        )
+    }
+
+    @Test
+    fun shutdownCommands_usesB6xManualAndOff() {
+        val cmds = WaspWingProtocol.shutdownCommands()
+        assertArrayEquals(byteArrayOf(0x23, 0xB2.toByte(), 0x2D, 0x00), cmds[0])
+        assertArrayEquals(byteArrayOf(0x25, 0x01), cmds[1])
+        assertArrayEquals(byteArrayOf(0x26, 0x01), cmds[2])
     }
 
     @Test

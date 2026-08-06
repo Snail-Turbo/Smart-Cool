@@ -164,11 +164,11 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
         }
 
         if (!ui.autoMode) {
-            // 手动控制（0-100%，映射设备档位 120~255）
+            // 手动控制（0-100%，映射 B6X 风速控制值 4500~5500）
             var windPercent by remember { mutableStateOf(50) }
             var coldPercent by remember { mutableStateOf(50) }
-            val windLevel = 120 + ((255 - 120) * windPercent / 100)
-            val coldLevel = 120 + ((255 - 120) * coldPercent / 100)
+            val windLevel = 4500 + ((5500 - 4500) * windPercent / 100)
+            val coldLevel = 178 + ((200 - 178) * coldPercent / 100)
             ui.ble.deviceStatus?.let { s ->
                 Text(
                     "当前模式：${runModeName(s.runMode)}",
@@ -180,7 +180,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 value = windPercent.toFloat(),
                 onValueChange = {
                     windPercent = it.toInt()
-                    viewModel.setManualWindLevel(120 + ((255 - 120) * windPercent / 100))
+                    viewModel.setManualWindLevel(4500 + ((5500 - 4500) * windPercent / 100))
                 },
                 valueRange = 0f..100f,
             )
@@ -189,7 +189,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 value = coldPercent.toFloat(),
                 onValueChange = {
                     coldPercent = it.toInt()
-                    viewModel.setManualColdLevel(120 + ((255 - 120) * coldPercent / 100))
+                    viewModel.setManualColdLevel(178 + ((200 - 178) * coldPercent / 100))
                 },
                 valueRange = 0f..100f,
             )

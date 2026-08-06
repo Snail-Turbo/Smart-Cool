@@ -19,8 +19,9 @@ class ThermalControllerTest {
     fun coldTemp_returnsShutdownCommands() {
         val c = ThermalController(config)
         val cmds = c.onTemperature(30f)
-        assertTrue(cmds.has(byteArrayOf(0x25, 0x00)))
-        assertTrue(cmds.has(byteArrayOf(0x26, 0x00)))
+        // 官方极性：关风扇 25 01、关制冷 26 01
+        assertTrue(cmds.has(byteArrayOf(0x25, 0x01)))
+        assertTrue(cmds.has(byteArrayOf(0x26, 0x01)))
         assertEquals(ThermalState.OFF, c.state)
     }
 
@@ -28,18 +29,18 @@ class ThermalControllerTest {
     fun hotTemp_startsWithMappedLevels() {
         val c = ThermalController(config)
         val cmds = c.onTemperature(50f)
-        assertTrue(cmds.has(byteArrayOf(0x11, 0xB4.toByte()))) // 180
-        assertTrue(cmds.has(byteArrayOf(0x12, 0xAA.toByte()))) // 170
-        assertTrue(cmds.has(byteArrayOf(0x25, 0x01)))
-        assertTrue(cmds.has(byteArrayOf(0x26, 0x01)))
+        // 50°C ≥ 48 断点 → 风速 4800 制冷 190，风扇/制冷开
+        assertTrue(cmds.has(byteArrayOf(0x23, 0xBE.toByte(), 0x30, 0x00))) // 23 BE 30 00 = 风速4800 冷190
+        assertTrue(cmds.has(byteArrayOf(0x25, 0x00)))
+        assertTrue(cmds.has(byteArrayOf(0x26, 0x00)))
         assertEquals(ThermalState.RUNNING, c.state)
     }
 
     @Test
     fun lowestBand_usesBaseWindLevel() {
         val c = ThermalController(config)
-        val cmds = c.onTemperature(43f)
-        assertTrue(cmds.has(byteArrayOf(0x11, 0x8C.toByte()))) // 140
+        val cmds = c.onTemperature(43f) // ≥42 启动，<48 用基础档 4500/178
+        assertTrue(cmds.has(byteArrayOf(0x23, 0xB2.toByte(), 0x2D, 0x00))) // 23 B2 2D 00
         assertEquals(ThermalState.RUNNING, c.state)
     }
 
@@ -57,8 +58,8 @@ class ThermalControllerTest {
         val c = ThermalController(config)
         c.onTemperature(45f)
         val cmds = c.onTemperature(35f)
-        assertTrue(cmds.has(byteArrayOf(0x25, 0x00)))
-        assertTrue(cmds.has(byteArrayOf(0x26, 0x00)))
+        assertTrue(cmds.has(byteArrayOf(0x25, 0x01)))
+        assertTrue(cmds.has(byteArrayOf(0x26, 0x01)))
         assertEquals(ThermalState.OFF, c.state)
     }
 
@@ -75,7 +76,6 @@ class ThermalControllerTest {
         val c = ThermalController(config)
         c.onTemperature(50f)
         val cmds = c.onTemperature(62f)
-        assertTrue(cmds.has(byteArrayOf(0x11, 0xFF.toByte())))
-        assertTrue(cmds.has(byteArrayOf(0x12, 0xFF.toByte())))
+        assertTrue(cmds.has(byteArrayOf(0x23, 0xC8.toByte(), 0x37, 0x00))) // 23 C8 37 00 = 风速5500 冷200
     }
 }
