@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -57,6 +58,8 @@ fun SettingsScreen(
     var interval by remember { mutableFloatStateOf(cfg.sampleIntervalMs.toFloat()) }
     var tempSource by remember { mutableStateOf(cfg.tempSource) }
     var sourceExpanded by remember { mutableStateOf(false) }
+    var showStatusPacket by remember { mutableStateOf(cfg.showStatusPacket) }
+    var showRecentCommands by remember { mutableStateOf(cfg.showRecentCommands) }
 
     // 出厂默认档位（恢复默认用）
     val defaultLevels = remember { ControlConfig().levels }
@@ -152,6 +155,21 @@ fun SettingsScreen(
             steps = 8,
         )
 
+        // ===== 界面设置（调试信息开关） =====
+        Text("界面设置", style = MaterialTheme.typography.titleSmall)
+        Text(
+            "调试信息默认隐藏，仅在需要排查问题时开启。",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text("显示状态包", modifier = Modifier.weight(1f))
+            Switch(checked = showStatusPacket, onCheckedChange = { showStatusPacket = it })
+        }
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text("显示最近命令", modifier = Modifier.weight(1f))
+            Switch(checked = showRecentCommands, onCheckedChange = { showRecentCommands = it })
+        }
+
         Row {
             Button(
                 onClick = {
@@ -167,6 +185,8 @@ fun SettingsScreen(
                             levels = levels,
                             sampleIntervalMs = interval.toLong(),
                             tempSource = tempSource,
+                            showStatusPacket = showStatusPacket,
+                            showRecentCommands = showRecentCommands,
                         ),
                     )
                     onBack()
@@ -175,7 +195,7 @@ fun SettingsScreen(
             Spacer(Modifier.width(8.dp))
             OutlinedButton(
                 onClick = {
-                    // 恢复出厂默认：重置各档编辑状态
+                    // 恢复出厂默认：重置各档编辑状态 + 界面开关
                     defaultLevels.forEachIndexed { i, def ->
                         val st = levelStates[i]
                         st.threshold.floatValue = def.thresholdC
@@ -184,6 +204,8 @@ fun SettingsScreen(
                     }
                     interval = ControlConfig().sampleIntervalMs.toFloat()
                     tempSource = TempSource.CPU_GPU_MAX
+                    showStatusPacket = false
+                    showRecentCommands = false
                 },
             ) { Text("恢复默认") }
             Spacer(Modifier.width(8.dp))

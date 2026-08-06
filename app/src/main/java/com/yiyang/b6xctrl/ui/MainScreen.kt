@@ -99,15 +99,18 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                         "制冷档 ${s.coldLevel} | 目标温 ${s.targetTemp}°C | 灯 ${if (s.lightOn) "亮" else "灭"}",
                         style = MaterialTheme.typography.bodySmall,
                     )
-                    ui.ble.lastRawHex?.let { hex ->
-                        Text(
-                            "状态包: $hex",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                    // 调试信息：状态包（默认隐藏，设置页可开启）
+                    if (ui.config.showStatusPacket) {
+                        ui.ble.lastRawHex?.let { hex ->
+                            Text(
+                                "状态包: $hex",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                     }
                 }
-                // 命令调试（最近发送）
-                if (ui.ble.lastSentCommands.isNotEmpty()) {
+                // 调试信息：最近命令（默认隐藏，设置页可开启）
+                if (ui.config.showRecentCommands && ui.ble.lastSentCommands.isNotEmpty()) {
                     Text(
                         "最近命令: ${ui.ble.lastSentCommands.joinToString(" / ")}",
                         style = MaterialTheme.typography.bodySmall,

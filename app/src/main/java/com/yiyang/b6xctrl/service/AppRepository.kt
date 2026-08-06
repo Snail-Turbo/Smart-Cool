@@ -2,6 +2,7 @@ package com.yiyang.b6xctrl.service
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -17,6 +18,8 @@ class AppRepository(private val context: Context) {
 
     private val keyInterval = intPreferencesKey("sample_interval_ms")
     private val keyTempSource = intPreferencesKey("temp_source")
+    private val keyShowStatusPacket = booleanPreferencesKey("show_status_packet")
+    private val keyShowRecentCommands = booleanPreferencesKey("show_recent_commands")
 
     // 4 档：每档 3 个 key（阈值/制冷/风速）
     private fun keyTh(i: Int) = floatPreferencesKey("level_${i}_threshold")
@@ -37,6 +40,8 @@ class AppRepository(private val context: Context) {
             levels = levels,
             sampleIntervalMs = p[keyInterval]?.toLong() ?: defaults.sampleIntervalMs,
             tempSource = TempSource.entries.getOrElse(p[keyTempSource] ?: 0) { TempSource.CPU_GPU_MAX },
+            showStatusPacket = p[keyShowStatusPacket] ?: false,
+            showRecentCommands = p[keyShowRecentCommands] ?: false,
         )
     }
 

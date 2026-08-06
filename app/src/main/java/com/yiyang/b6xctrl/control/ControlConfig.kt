@@ -29,4 +29,7 @@ data class ControlConfig(
     ),
     val sampleIntervalMs: Long = 2000,
     val tempSource: TempSource = TempSource.CPU_GPU_MAX,
+    // 界面调试开关（默认关闭，可在设置页开启）
+    val showStatusPacket: Boolean = false,
+    val showRecentCommands: Boolean = false,
 )
