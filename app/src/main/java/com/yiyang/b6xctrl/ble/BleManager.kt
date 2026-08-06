@@ -166,10 +166,25 @@ class BleManager(context: Context) {
             mainHandler.post {
                 val g = gatt
                 val char = writeCharacteristic
+                val hex = cmd.joinToString(" ") { "%02X".format(it.toInt() and 0xFF) }
                 if (g != null && char != null) {
                     char.value = cmd
                     char.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
-                    g.writeCharacteristic(char)
+                    val ok = try {
+                        g.writeCharacteristic(char)
+                    } catch (_: Exception) {
+                        false
+                    }
+                    _uiState.value = _uiState.value.copy(
+                        lastSentCommands = (_uiState.value.lastSentCommands + hex).takeLast(6),
+                        hasSendError = _uiState.value.hasSendError || !ok,
+                    )
+                } else {
+                    // 未连接或写特征缺失：记录发送失败
+                    _uiState.value = _uiState.value.copy(
+                        lastSentCommands = (_uiState.value.lastSentCommands + "$hex ⚠️未发送").takeLast(6),
+                        hasSendError = true,
+                    )
                 }
             }
         }

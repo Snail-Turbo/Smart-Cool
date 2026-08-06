@@ -28,10 +28,7 @@ class ThermalController(config: ControlConfig) {
                     applyLevels(tempC)
                 } else if (shutdownPending) {
                     shutdownPending = false
-                    listOf(
-                        WaspWingProtocol.setFanOn(false),
-                        WaspWingProtocol.setCoolOn(false),
-                    )
+                    WaspWingProtocol.shutdownCommands()
                 } else {
                     emptyList()
                 }
@@ -40,10 +37,7 @@ class ThermalController(config: ControlConfig) {
                 if (tempC <= config.stopTemp) {
                     state = ThermalState.OFF
                     shutdownPending = false
-                    listOf(
-                        WaspWingProtocol.setFanOn(false),
-                        WaspWingProtocol.setCoolOn(false),
-                    )
+                    WaspWingProtocol.shutdownCommands()
                 } else {
                     applyLevelsIfChanged(tempC)
                 }
@@ -73,7 +67,7 @@ class ThermalController(config: ControlConfig) {
                 WaspWingProtocol.setCoolOn(true),
             )
         }
-        return listOf(WaspWingProtocol.setFanOn(false), WaspWingProtocol.setCoolOn(false))
+        return WaspWingProtocol.shutdownCommands()
     }
 
     /** 热更新配置（保留当前状态）。 */

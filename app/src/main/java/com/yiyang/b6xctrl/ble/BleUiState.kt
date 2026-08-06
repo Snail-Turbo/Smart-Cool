@@ -10,4 +10,8 @@ data class BleUiState(
     val deviceStatus: WaspWingProtocol.DeviceStatus? = null,
     /** 最近收到的 0x13 状态包 hex（调试用） */
     val lastRawHex: String? = null,
+    /** 最近发送的命令 hex（调试用，最多保留 6 条） */
+    val lastSentCommands: List<String> = emptyList(),
+    /** 是否有命令因未连接/写特征缺失而发送失败 */
+    val hasSendError: Boolean = false,
 )

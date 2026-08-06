@@ -16,6 +16,7 @@ import com.yiyang.b6xctrl.ble.BleConnectionState
 import com.yiyang.b6xctrl.ble.BleManager
 import com.yiyang.b6xctrl.ble.BleUiState
 import com.yiyang.b6xctrl.control.ControlConfig
+import com.yiyang.b6xctrl.control.TempSource
 import com.yiyang.b6xctrl.control.ThermalController
 import com.yiyang.b6xctrl.control.ThermalState
 import com.yiyang.b6xctrl.protocol.WaspWingProtocol
@@ -95,7 +96,7 @@ class ControlService : Service() {
             while (isActive) {
                 val cfg = _uiState.value.config
                 val snapshot = tempReader.readSnapshot()
-                val temp = snapshot.controlC
+                val temp = pickControlTemp(cfg, snapshot)
                 _uiState.value = _uiState.value.copy(systemTempC = temp, temps = snapshot)
 
                 if (_uiState.value.autoMode &&
@@ -150,6 +151,17 @@ class ControlService : Service() {
     fun setConfig(config: ControlConfig) {
         _uiState.value = _uiState.value.copy(config = config)
         controller.updateConfig(config)
+    }
+
+    /** 按配置的温控参考源从温度快照中选取控制温度 */
+    private fun pickControlTemp(config: ControlConfig, s: TempSnapshot): Float? = when (config.tempSource) {
+        TempSource.CPU -> s.cpuC
+        TempSource.GPU -> s.gpuC
+        TempSource.BATTERY -> s.batteryC
+        TempSource.DDR -> s.ddrC
+        TempSource.CAM -> s.camC
+        TempSource.ALL_MAX -> listOfNotNull(s.cpuC, s.gpuC, s.ddrC, s.camC, s.batteryC).maxOrNull()
+        TempSource.CPU_GPU_MAX -> listOfNotNull(s.cpuC, s.gpuC).maxOrNull()
     }
 
     private fun createNotificationChannel() {
