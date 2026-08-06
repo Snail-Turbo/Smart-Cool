@@ -148,6 +148,13 @@ class ControlService : Service() {
         bleManager.sendCommands(controller.onManualPower(on))
     }
 
+    /** 实验功能：发送原始 hex 命令（如 "22 8C 8C"）。返回是否成功解析并发送。 */
+    fun sendExperimentHex(hex: String): Boolean {
+        val bytes = WaspWingProtocol.parseHexInput(hex) ?: return false
+        bleManager.sendCommand(bytes)
+        return true
+    }
+
     fun setConfig(config: ControlConfig) {
         _uiState.value = _uiState.value.copy(config = config)
         controller.updateConfig(config)

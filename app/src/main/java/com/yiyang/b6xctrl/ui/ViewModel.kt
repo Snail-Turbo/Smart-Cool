@@ -83,6 +83,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         service?.setManualPower(on)
     }
 
+    /** 实验功能：发送原始 hex 命令，返回是否解析成功 */
+    fun sendExperimentHex(hex: String): Boolean =
+        service?.sendExperimentHex(hex) ?: false
+
     fun saveConfig(cfg: ControlConfig) {
         viewModelScope.launch {
             repo.saveConfig(cfg)
