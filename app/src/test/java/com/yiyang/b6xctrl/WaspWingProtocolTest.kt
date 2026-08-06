@@ -45,15 +45,15 @@ class WaspWingProtocolTest {
             byteArrayOf(0x23, 0xB2.toByte(), 0x2D, 0x00),
             WaspWingProtocol.manualModeCommand(4500, 178),
         )
-        // 实测上限：风速 6000、制冷 229
+        // 实测上限：风速 6000、制冷 178（用户上限）
         assertArrayEquals(
-            byteArrayOf(0x23, 0xE5.toByte(), 0x3C, 0x00),
-            WaspWingProtocol.manualModeCommand(6000, 229),
+            byteArrayOf(0x23, 0xB2.toByte(), 0x3C, 0x00),
+            WaspWingProtocol.manualModeCommand(6000, 178),
         )
-        // 推荐制冷 205
+        // 制冷 clamp：超上限 229 会被压到 178
         assertArrayEquals(
-            byteArrayOf(0x23, 0xCD.toByte(), 0x3C, 0x00),
-            WaspWingProtocol.manualModeCommand(6000, 205),
+            byteArrayOf(0x23, 0xB2.toByte(), 0x3C, 0x00),
+            WaspWingProtocol.manualModeCommand(6000, 229),
         )
     }
 

@@ -32,22 +32,25 @@ object WaspWingProtocol {
 
     /** B6X 手动模式命令（0x23，4 字节，字节码级实证）：
      *  23 <制冷档> <风速/100> <风速%100>
-     *  风速 4500 → 23 B2 2D 00；实测上限：风速 4500~6000，制冷 178~229(推荐205) */
+     *  字段级可选：byte2=0x00 制冷不调整；byte3=0x00 风速不调整
+     *  实测范围：风速 4000~6000（用户自定安全区间，低于4000可能停转且不可命令重启），
+     *  制冷 1~178（用户上限178，官方手动就178/200两档，设备能力到229） */
     fun manualModeCommand(wind: Int, cold: Int = 178): ByteArray {
         val w = wind.coerceIn(WIND_MIN, WIND_MAX)
-        return byteArrayOf(0x23, cold.toByte(), (w / 100).toByte(), (w % 100).toByte())
+        val c = cold.coerceIn(COLD_MIN, COLD_MAX)
+        return byteArrayOf(0x23, c.toByte(), (w / 100).toByte(), (w % 100).toByte())
     }
 
-    /** B6X 风速控制值范围（实测上限 6000） */
-    const val WIND_MIN = 4500
+    /** B6X 风速范围（用户自定：最低4000避免停转不可逆，最高6000） */
+    const val WIND_MIN = 4000
     const val WIND_MAX = 6000
-    /** B6X 制冷档范围（实测最高 229，推荐 205） */
-    const val COLD_MIN = 178
-    const val COLD_MAX = 229
-    const val COLD_RECOMMENDED = 205
+    /** B6X 制冷档范围（用户上限178，官方手动178/200，设备能力到229） */
+    const val COLD_MIN = 1
+    const val COLD_MAX = 178
+    const val COLD_RECOMMENDED = 178
 
-    /** "停机"命令：实测确认 B6X 无软件关机（25/26 无效、风速0无效），
-     *  最低档 4500 + 制冷 178 是设备能达到的最低功耗状态 */
+    /** "停机"命令：B6X 无软件关机，最低档=最低安全风速4500+制冷178（停转风险保护：
+     *  不用4000，避免极端情况停转后无法命令重启） */
     fun shutdownCommands(): List<ByteArray> = listOf(
         manualModeCommand(4500, 178),
     )
