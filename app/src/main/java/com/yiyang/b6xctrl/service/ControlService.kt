@@ -39,6 +39,7 @@ data class UiState(
     val systemTempC: Float? = null,
     val temps: TempSnapshot = TempSnapshot(),
     val thermalState: ThermalState = ThermalState.OFF,
+    val currentLevelIndex: Int = 0,
     val autoMode: Boolean = true,
     val config: ControlConfig = ControlConfig(),
     val rootAvailable: Boolean = false,
@@ -97,7 +98,10 @@ class ControlService : Service() {
                 val cfg = _uiState.value.config
                 val snapshot = tempReader.readSnapshot()
                 val temp = pickControlTemp(cfg, snapshot)
-                _uiState.value = _uiState.value.copy(systemTempC = temp, temps = snapshot)
+                _uiState.value = _uiState.value.copy(
+                    systemTempC = temp,
+                    temps = snapshot,
+                )
 
                 if (_uiState.value.autoMode &&
                     _uiState.value.ble.connectionState == BleConnectionState.CONNECTED
@@ -109,7 +113,10 @@ class ControlService : Service() {
                     // 心跳：维持状态推送
                     bleManager.sendCommand(WaspWingProtocol.openReadNotification())
                 }
-                _uiState.value = _uiState.value.copy(thermalState = controller.state)
+                _uiState.value = _uiState.value.copy(
+                    thermalState = controller.state,
+                    currentLevelIndex = controller.currentLevelIndex,
+                )
                 delay(cfg.sampleIntervalMs)
             }
         }

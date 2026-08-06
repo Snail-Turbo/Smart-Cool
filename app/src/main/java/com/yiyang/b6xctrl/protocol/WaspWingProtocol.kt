@@ -44,9 +44,9 @@ object WaspWingProtocol {
     /** B6X 风速范围（用户自定：最低4000避免停转不可逆，最高6000） */
     const val WIND_MIN = 4000
     const val WIND_MAX = 6000
-    /** B6X 制冷档范围（用户上限178，官方手动178/200，设备能力到229） */
+    /** B6X 制冷档范围（用户 5 档曲线用到 200，设备能力到 229） */
     const val COLD_MIN = 1
-    const val COLD_MAX = 178
+    const val COLD_MAX = 200
     const val COLD_RECOMMENDED = 178
 
     /** 平衡档（用户实测的"停机替代"）：制冷40 + 风速4600。

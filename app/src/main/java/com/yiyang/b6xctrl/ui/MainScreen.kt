@@ -138,17 +138,25 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     style = MaterialTheme.typography.displayMedium,
                     fontWeight = FontWeight.Bold,
                 )
-                // 设备真实运行状态（来自 0x13 状态包） vs 控制目标（来自温度判断）
+                // 当前温控档位（来自 5 档曲线） + 设备真实运行状态
+                val levelName = when (ui.currentLevelIndex) {
+                    0 -> "A 待机"
+                    1 -> "B 平衡"
+                    2 -> "C"
+                    3 -> "C'"
+                    4 -> "D 满档"
+                    else -> "档${ui.currentLevelIndex}"
+                }
+                val lvl = ui.config.levels.getOrNull(ui.currentLevelIndex)
+                val levelDesc = if (lvl != null) "风${lvl.wind}/冷${lvl.cold}" else ""
                 val deviceRunning = ui.ble.deviceStatus?.isRunning
-                val targetRunning = ui.thermalState.name == "RUNNING"
                 val runningText = when {
                     deviceRunning == null -> "未知"
                     deviceRunning -> "设备运行中"
                     else -> "设备已停"
                 }
-                val targetText = if (targetRunning) "目标:启动" else "目标:停机"
                 Text(
-                    "实际: $runningText | $targetText | " +
+                    "当前档：$levelName $levelDesc | 设备: $runningText | " +
                         "root: ${if (ui.rootAvailable) "可用" else "未检测到"}",
                     style = MaterialTheme.typography.bodyMedium,
                 )

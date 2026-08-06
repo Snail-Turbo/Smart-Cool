@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -28,10 +29,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yiyang.b6xctrl.control.ControlConfig
+import com.yiyang.b6xctrl.control.TempLevel
 import com.yiyang.b6xctrl.control.TempSource
+
+/** 档位名称（A/B/C/C'/D） */
+private fun levelName(i: Int): String = when (i) {
+    0 -> "A"
+    1 -> "B"
+    2 -> "C"
+    3 -> "C'"
+    else -> "D"
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,17 +54,30 @@ fun SettingsScreen(
     val ui by viewModel.uiState.collectAsState()
     val cfg = ui.config
 
-    var startTemp by remember { mutableFloatStateOf(cfg.startTemp) }
-    var stopTemp by remember { mutableFloatStateOf(cfg.stopTemp) }
     var interval by remember { mutableFloatStateOf(cfg.sampleIntervalMs.toFloat()) }
     var tempSource by remember { mutableStateOf(cfg.tempSource) }
     var sourceExpanded by remember { mutableStateOf(false) }
+
+    // 每档可编辑：阈值/制冷/风速（局部状态，保存时才提交）
+    val levelStates = remember(cfg) {
+        cfg.levels.map { lvl ->
+            LevelEditState(
+                threshold = mutableFloatStateOf(lvl.thresholdC),
+                cold = mutableFloatStateOf(lvl.cold.toFloat()),
+                wind = mutableFloatStateOf(lvl.wind.toFloat()),
+            )
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("温控设置", style = MaterialTheme.typography.titleLarge)
+        Text(
+            "PC 风扇式温控曲线：温度达到某档阈值即切到该档（升档/降档都实时）。",
+            style = MaterialTheme.typography.bodySmall,
+        )
 
         // 温控参考温度源
         Text("温控参考温度", style = MaterialTheme.typography.labelMedium)
@@ -84,19 +109,37 @@ fun SettingsScreen(
             }
         }
 
-        Text("启动阈值: ${"%.0f".format(startTemp)}°C")
-        Slider(
-            value = startTemp,
-            onValueChange = { startTemp = it },
-            valueRange = 30f..55f,
-        )
-
-        Text("停止阈值: ${"%.0f".format(stopTemp)}°C")
-        Slider(
-            value = stopTemp,
-            onValueChange = { stopTemp = it },
-            valueRange = 30f..55f,
-        )
+        // 各档位卡片
+        cfg.levels.forEachIndexed { i, lvl ->
+            val st = levelStates[i]
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        "档 ${levelName(i)}（${if (i == 0) "低于此温度" else "≥${lvl.thresholdC}°C 触发"}）",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text("触发温度：${st.threshold.floatValue.toInt()}°C")
+                    Slider(
+                        value = st.threshold.floatValue,
+                        onValueChange = { st.threshold.floatValue = it },
+                        valueRange = 20f..70f,
+                    )
+                    Text("制冷档：${st.cold.floatValue.toInt()}（1~229）")
+                    Slider(
+                        value = st.cold.floatValue,
+                        onValueChange = { st.cold.floatValue = it },
+                        valueRange = 1f..229f,
+                    )
+                    Text("风速：${st.wind.floatValue.toInt()}（4000~6000）")
+                    Slider(
+                        value = st.wind.floatValue,
+                        onValueChange = { st.wind.floatValue = it },
+                        valueRange = 4000f..6000f,
+                    )
+                }
+            }
+        }
 
         Text("采样间隔: ${(interval / 1000).toInt()}s")
         Slider(
@@ -109,14 +152,16 @@ fun SettingsScreen(
         Row {
             Button(
                 onClick = {
+                    val levels = levelStates.map { st ->
+                        TempLevel(
+                            thresholdC = st.threshold.floatValue,
+                            cold = st.cold.floatValue.toInt(),
+                            wind = st.wind.floatValue.toInt(),
+                        )
+                    }
                     viewModel.saveConfig(
                         ControlConfig(
-                            startTemp = startTemp,
-                            stopTemp = stopTemp,
-                            baseWindLevel = cfg.baseWindLevel,
-                            baseColdLevel = cfg.baseColdLevel,
-                            windMap = cfg.windMap,
-                            coldMap = cfg.coldMap,
+                            levels = levels,
                             sampleIntervalMs = interval.toLong(),
                             tempSource = tempSource,
                         ),
@@ -129,3 +174,10 @@ fun SettingsScreen(
         }
     }
 }
+
+/** 一档的可编辑状态（用可变状态持有，避免每次重建） */
+private class LevelEditState(
+    val threshold: androidx.compose.runtime.MutableFloatState,
+    val cold: androidx.compose.runtime.MutableFloatState,
+    val wind: androidx.compose.runtime.MutableFloatState,
+)
