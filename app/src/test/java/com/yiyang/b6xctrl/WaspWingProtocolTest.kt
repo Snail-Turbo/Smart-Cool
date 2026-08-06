@@ -59,7 +59,7 @@ class WaspWingProtocolTest {
             0xFF.toByte(),   // [8] 灯亮
             0x0C,            // [9] 目标温 12
             0x0F,            // [10] 转速低 15
-            0x0A,            // [11] 转速高 10 → 10*256+15=2575（大端16位）
+            0x0A,            // [11] 转速高 10 → 10*100+15=1015（官方B6分支公式）
             0x32,            // [12] 超频风速高
             0x00,            // [13] 超频制冷
             0x64,            // [14] 风运行 100
@@ -76,25 +76,25 @@ class WaspWingProtocolTest {
         assertEquals(12, s.targetTemp)
         assertEquals(24.05f, s.coldTempC, 0.001f)
         assertEquals(33f, s.hotTempC, 0.001f)
-        assertEquals(2575, s.speedRpm)
+        assertEquals(1015, s.speedRpm)
         assertEquals(true, s.lightOn)
     }
 
     @Test
     fun parseStatus_userRealPackets_speedFormulaVerified() {
         // 用户实测（官方手动最低速）：13 00 05 03 02 FF 2D B2 00 0C BC 11 ...
-        // 转速 = 0x11<<8 + 0xBC = 17*256+188 = 4540 RPM ✅
+        // 官方 B6 分支公式 setSpeed(value[11]*100+value[10]) = 17*100+188 = 1888
         val data = byteArrayOf(
             0x13, 0x00, 0x05, 0x03, 0x02, 0xFF.toByte(), 0x2D, 0xB2.toByte(),
             0x00, 0x0C, 0xBC.toByte(), 0x11, 0x32, 0xB2.toByte(), 0x94.toByte(),
             0xB2.toByte(), 0x29, 0x01, 0x00, 0x00,
         )
         val s = WaspWingProtocol.parseStatus(data)!!
-        assertEquals(4540, s.speedRpm)
+        assertEquals(1888, s.speedRpm)
         assertEquals(5.03f, s.coldTempC, 0.001f)
         assertEquals(4500, s.windLevel)
         assertEquals(178, s.coldLevel)
-        assertEquals(2, s.runMode)
+        assertEquals(2, s.runMode) // B6X 手动模式 = 2
         assertEquals(false, s.lightOn) // [8]=00 灯灭
         assertEquals(41f, s.hotTempC, 0.001f) // [16]=0x29=41
     }
