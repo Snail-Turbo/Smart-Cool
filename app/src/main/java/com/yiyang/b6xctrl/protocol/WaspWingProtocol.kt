@@ -38,6 +38,37 @@ object WaspWingProtocol {
         setCoolOn(false),
     )
 
+    // ================= 实验功能：手动模式 0x22 候选命令 =================
+    // B6X 手动模式命令布局在反编译中存在分支歧义，以下候选供实机校准。
+    // 用户点击发送后看"状态包"里 runMode（0x13 包 byte[2] 高4位）是否变为 1。
+
+    /** 解析用户输入的 hex 字符串（"22 8C 8C" / "228c8c"），非法返回 null */
+    fun parseHexInput(s: String): ByteArray? {
+        val cleaned = s.replace(" ", "").replace(",", "")
+        if (cleaned.isEmpty() || cleaned.length % 2 != 0) return null
+        val out = ByteArray(cleaned.length / 2)
+        for (i in out.indices) {
+            val byte = cleaned.substring(i * 2, i * 2 + 2).toIntOrNull(16) ?: return null
+            if (byte > 255) return null
+            out[i] = byte.toByte()
+        }
+        return out
+    }
+
+    /** 实验预设：名称 → hex（wind/cold 默认用 140=0x8C 便于对照） */
+    val experimentPresets: List<Pair<String, String>> = listOf(
+        "手动A(短) 22 8C 8C" to "22 8C 8C",
+        "手动B(4字节) 22 00 8C 8C" to "22 00 8C 8C",
+        "手动C(6字节) 22 8C 00 8C 00 00" to "22 8C 00 8C 00 00",
+        "手动D(长9字节) 22 8C 01 8C 00 00 28 00 00" to "22 8C 01 8C 00 00 28 00 00",
+        "智能变频 21 12(目标18°C)" to "21 12",
+        "超频 23 8C 8C" to "23 8C 8C",
+        "关风扇 25 00" to "25 00",
+        "关制冷 26 00" to "26 00",
+        "灯开 10 FF" to "10 FF",
+        "灯关 10 00" to "10 00",
+    )
+
     /** 从 0x13 状态包解析设备状态；非 0x13 包返回 null */
     fun parseStatus(data: ByteArray): DeviceStatus? {
         if (data.isEmpty() || data[0].toInt() != 0x13) return null

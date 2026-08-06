@@ -8,10 +8,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -38,6 +41,7 @@ private fun fmtTemp(v: Float?): String =
 fun MainScreen(viewModel: MainViewModel = viewModel()) {
     val ui by viewModel.uiState.collectAsState()
     var showSettings by remember { mutableStateOf(false) }
+    var showExperiment by remember { mutableStateOf(false) }
 
     if (showSettings) {
         SettingsScreen(onBack = { showSettings = false }, viewModel = viewModel)
@@ -176,8 +180,62 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 Text("温控设置")
             }
             Spacer(Modifier.width(8.dp))
-            OutlinedButton(onClick = { viewModel.stopService() }, modifier = Modifier.weight(1f)) {
-                Text("停止服务")
+            OutlinedButton(onClick = { showExperiment = !showExperiment }, modifier = Modifier.weight(1f)) {
+                Text(if (showExperiment) "收起实验" else "实验功能")
+            }
+        }
+
+        if (showExperiment) {
+            ExperimentPanel(viewModel = viewModel)
+        }
+    }
+}
+
+/** 实验面板：发送原始 hex 命令，校准 B6X 手动模式(0x22)等命令布局 */
+@Composable
+private fun ExperimentPanel(viewModel: MainViewModel) {
+    var hexInput by remember { mutableStateOf("") }
+    var feedback by remember { mutableStateOf<String?>(null) }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            Modifier.padding(12.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("实验功能（校准协议用）", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "点按钮发送后，看上面\"状态包\"的 runMode（第3字节高4位）是否变化。" +
+                    "把结果反馈给我即可校准正确命令。",
+                style = MaterialTheme.typography.bodySmall,
+            )
+
+            OutlinedTextField(
+                value = hexInput,
+                onValueChange = { hexInput = it },
+                label = { Text("自定义 hex（如 22 8C 8C）") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Button(
+                onClick = {
+                    val ok = viewModel.sendExperimentHex(hexInput)
+                    feedback = if (ok) "已发送: $hexInput" else "hex 格式错误"
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("发送自定义命令") }
+
+            if (feedback != null) {
+                Text(feedback.orEmpty(), style = MaterialTheme.typography.bodySmall)
+            }
+
+            Text("快捷预设", style = MaterialTheme.typography.labelMedium)
+            WaspWingProtocol.experimentPresets.forEach { (label, hex) ->
+                OutlinedButton(
+                    onClick = { viewModel.sendExperimentHex(hex) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(label, style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
     }
