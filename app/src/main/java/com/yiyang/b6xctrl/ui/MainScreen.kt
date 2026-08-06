@@ -1,11 +1,14 @@
 package com.yiyang.b6xctrl.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -26,6 +29,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -230,10 +238,201 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
             }
         }
 
+        // 温控曲线图（自适应：平板并排，手机垂直）
+        TempCurveSection(
+            levels = ui.config.levels,
+            currentTempC = ui.systemTempC,
+            currentLevelIndex = ui.currentLevelIndex,
+        )
+
         if (showExperiment) {
             ExperimentPanel(viewModel = viewModel)
         }
     }
+}
+
+/** 温控曲线区：平板（宽）并排放两张曲线，手机（窄）垂直叠放 */
+@Composable
+private fun TempCurveSection(
+    levels: List<com.yiyang.b6xctrl.control.TempLevel>,
+    currentTempC: Float?,
+    currentLevelIndex: Int,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp)) {
+            Text("温控曲线", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text(
+                "温度→风速 / 温度→制冷（当前档位标红）",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(Modifier.height(8.dp))
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                if (maxWidth >= 600.dp) {
+                    // 平板：并排
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.weight(1f)) {
+                            LevelCurveChart(
+                                levels = levels,
+                                valueSelector = { it.wind },
+                                valueMin = 4000f,
+                                valueMax = 6000f,
+                                valueLabel = { "${it / 100}" },
+                                title = "风速档（4500~6000）",
+                                color = Color(0xFF1B5E20),
+                                currentTempC = currentTempC,
+                                currentLevelIndex = currentLevelIndex,
+                            )
+                        }
+                        Column(Modifier.weight(1f)) {
+                            LevelCurveChart(
+                                levels = levels,
+                                valueSelector = { it.cold },
+                                valueMin = 0f,
+                                valueMax = 210f,
+                                valueLabel = { "$it" },
+                                title = "制冷档（0~200）",
+                                color = Color(0xFF00838F),
+                                currentTempC = currentTempC,
+                                currentLevelIndex = currentLevelIndex,
+                            )
+                        }
+                    }
+                } else {
+                    // 手机：垂直
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        LevelCurveChart(
+                            levels = levels,
+                            valueSelector = { it.wind },
+                            valueMin = 4000f,
+                            valueMax = 6000f,
+                            valueLabel = { "${it / 100}" },
+                            title = "风速档（4500~6000）",
+                            color = Color(0xFF1B5E20),
+                            currentTempC = currentTempC,
+                            currentLevelIndex = currentLevelIndex,
+                        )
+                        LevelCurveChart(
+                            levels = levels,
+                            valueSelector = { it.cold },
+                            valueMin = 0f,
+                            valueMax = 210f,
+                            valueLabel = { "$it" },
+                            title = "制冷档（0~200）",
+                            color = Color(0xFF00838F),
+                            currentTempC = currentTempC,
+                            currentLevelIndex = currentLevelIndex,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 单张阶梯曲线（温度→风速或制冷），当前温度画红点/红线 */
+@Composable
+private fun LevelCurveChart(
+    levels: List<com.yiyang.b6xctrl.control.TempLevel>,
+    valueSelector: (com.yiyang.b6xctrl.control.TempLevel) -> Int,
+    valueMin: Float,
+    valueMax: Float,
+    valueLabel: (Int) -> String,
+    title: String,
+    color: Color,
+    currentTempC: Float?,
+    currentLevelIndex: Int,
+) {
+    // X 轴温度范围：20~70°C（含所有阈值）
+    val tempMin = 20f
+    val tempMax = 70f
+    // Y 轴范围
+    val yMin = valueMin
+    val yMax = valueMax
+
+    // 收集阶梯折线点（含起始水平线）
+    val points = remember(levels) {
+        buildList {
+            // 起始（<第一档阈值）：第一档的值
+            add(Offset(tempMin, levels.first().let(valueSelector).toFloat()))
+            for (lvl in levels) {
+                // 垂直跳变（从上一档值到本档值）
+                add(Offset(lvl.thresholdC, lvl.let(valueSelector).toFloat()))
+            }
+            // 终点（>最后档阈值）：最后档的值
+            add(Offset(tempMax, levels.last().let(valueSelector).toFloat()))
+        }
+    }
+
+    Canvas(
+        modifier = Modifier.fillMaxWidth().height(160.dp),
+    ) {
+        // 坐标映射
+        fun x(t: Float) = (t - tempMin) / (tempMax - tempMin) * size.width
+        fun y(v: Float) = size.height - (v - yMin) / (yMax - yMin) * size.height
+
+        // 网格线
+        for (i in 0..5) {
+            val gy = size.height * i / 5f
+            drawLine(
+                color = Color.Gray.copy(alpha = 0.2f),
+                start = Offset(0f, gy),
+                end = Offset(size.width, gy),
+                strokeWidth = 1f,
+            )
+        }
+
+        // 阶梯曲线
+        val path = Path()
+        points.forEachIndexed { i, p ->
+            if (i == 0) path.moveTo(x(p.x), y(p.y))
+            else path.lineTo(x(p.x), y(p.y))
+        }
+        drawPath(path, color = color, style = Stroke(width = 3f, cap = StrokeCap.Round))
+
+        // 当前温度竖线 + 交点红点
+        currentTempC?.let { t ->
+            if (t in tempMin..tempMax) {
+                val cx = x(t)
+                drawLine(
+                    color = Color.Red.copy(alpha = 0.6f),
+                    start = Offset(cx, 0f),
+                    end = Offset(cx, size.height),
+                    strokeWidth = 1.5f,
+                )
+                // 当前档位的值
+                val curValue = if (currentLevelIndex in levels.indices) {
+                    levels[currentLevelIndex].let(valueSelector).toFloat()
+                } else levels.first().let(valueSelector).toFloat()
+                drawCircle(
+                    color = Color.Red,
+                    radius = 6f,
+                    center = Offset(cx, y(curValue)),
+                )
+            }
+        }
+    }
+
+    // 图例 + 各档标注
+    Text(title, style = MaterialTheme.typography.labelSmall)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        levels.forEachIndexed { i, lvl ->
+            val isCurrent = i == currentLevelIndex
+            Text(
+                "${levelName2(i)}:${lvl.thresholdC.toInt()}°→${valueLabel(valueSelector(lvl))}",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isCurrent) Color.Red else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+            )
+        }
+    }
+}
+
+private fun levelName2(i: Int): String = when (i) {
+    0 -> "A"
+    1 -> "B"
+    2 -> "C"
+    3 -> "C'"
+    else -> "D"
 }
 
 /** 实验面板：发送原始 hex 命令，校准 B6X 手动模式(0x23)等命令布局 */
