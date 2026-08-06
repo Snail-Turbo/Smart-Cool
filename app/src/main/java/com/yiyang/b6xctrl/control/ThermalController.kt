@@ -45,13 +45,13 @@ class ThermalController(config: ControlConfig) {
         }
     }
 
-    /** 手动模式：直接设风速与制冷档（UI 手动滑杆用）。 */
+    /** 手动模式：直接设风速控制值(4500~5500)与制冷档（B6X 用 0x23 手动命令）。
+     *  同时同步自动状态机，避免手动/自动脱钩。 */
     fun onManualLevels(windLevel: Int, coldLevel: Int): List<ByteArray> {
-        currentWindLevel = windLevel.coerceIn(WaspWingProtocol.WIND_LEVEL_MIN, WaspWingProtocol.WIND_LEVEL_MAX)
-        currentColdLevel = coldLevel.coerceIn(WaspWingProtocol.WIND_LEVEL_MIN, WaspWingProtocol.WIND_LEVEL_MAX)
+        currentWindLevel = windLevel.coerceIn(WIND_MIN, WIND_MAX)
+        currentColdLevel = coldLevel.coerceIn(COLD_MIN, COLD_MAX)
         return listOf(
-            WaspWingProtocol.setWindLevel(currentWindLevel),
-            WaspWingProtocol.setColdLevel(currentColdLevel),
+            WaspWingProtocol.manualModeCommand(currentWindLevel, currentColdLevel),
             WaspWingProtocol.setFanOn(true),
             WaspWingProtocol.setCoolOn(true),
         )
@@ -61,13 +61,21 @@ class ThermalController(config: ControlConfig) {
     fun onManualPower(on: Boolean): List<ByteArray> {
         if (on) {
             return listOf(
-                WaspWingProtocol.setWindLevel(currentWindLevel),
-                WaspWingProtocol.setColdLevel(currentColdLevel),
+                WaspWingProtocol.manualModeCommand(currentWindLevel, currentColdLevel),
                 WaspWingProtocol.setFanOn(true),
                 WaspWingProtocol.setCoolOn(true),
             )
         }
         return WaspWingProtocol.shutdownCommands()
+    }
+
+    companion object {
+        /** B6X 风速控制值范围 */
+        const val WIND_MIN = 4500
+        const val WIND_MAX = 5500
+        /** B6X 制冷档范围（官方 178/200） */
+        const val COLD_MIN = 120
+        const val COLD_MAX = 200
     }
 
     /** 热更新配置（保留当前状态）。 */
@@ -79,8 +87,7 @@ class ThermalController(config: ControlConfig) {
         currentWindLevel = mapLevel(tempC, config.windMap, config.baseWindLevel)
         currentColdLevel = mapLevel(tempC, config.coldMap, config.baseColdLevel)
         return listOf(
-            WaspWingProtocol.setWindLevel(currentWindLevel),
-            WaspWingProtocol.setColdLevel(currentColdLevel),
+            WaspWingProtocol.manualModeCommand(currentWindLevel, currentColdLevel),
             WaspWingProtocol.setFanOn(true),
             WaspWingProtocol.setCoolOn(true),
         )
@@ -93,8 +100,7 @@ class ThermalController(config: ControlConfig) {
         currentWindLevel = wind
         currentColdLevel = cold
         return listOf(
-            WaspWingProtocol.setWindLevel(wind),
-            WaspWingProtocol.setColdLevel(cold),
+            WaspWingProtocol.manualModeCommand(wind, cold),
         )
     }
 

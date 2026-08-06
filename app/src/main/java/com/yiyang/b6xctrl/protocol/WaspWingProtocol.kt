@@ -21,28 +21,34 @@ object WaspWingProtocol {
     fun setColdLevel(level: Int): ByteArray =
         byteArrayOf(0x12, level.coerceIn(WIND_LEVEL_MIN, WIND_LEVEL_MAX).toByte())
 
-    /** 风扇开关 */
-    fun setFanOn(on: Boolean): ByteArray = byteArrayOf(0x25, if (on) 0x01 else 0x00)
+    /** 风扇开关（⚠️ 官方极性：on=true → 25 00，on=false → 25 01，已按官方 offOnWind 修正） */
+    fun setFanOn(on: Boolean): ByteArray = byteArrayOf(0x25, if (on) 0x00 else 0x01)
 
-    /** 制冷(TEC)开关 */
-    fun setCoolOn(on: Boolean): ByteArray = byteArrayOf(0x26, if (on) 0x01 else 0x00)
+    /** 制冷(TEC)开关（⚠️ 官方极性：on=true → 26 00，on=false → 26 01） */
+    fun setCoolOn(on: Boolean): ByteArray = byteArrayOf(0x26, if (on) 0x00 else 0x01)
 
     /** 灯开关 */
     fun setLightOn(on: Boolean): ByteArray = byteArrayOf(0x10, if (on) 0xFF.toByte() else 0x00)
 
-    /** 全关命令：档位降到最低 + 关风扇 + 关制冷（即使某个命令被忽略，功率也最小化） */
+    /** B6X 手动模式命令（0x23，4 字节，字节码级实证）：
+     *  23 <制冷档(178/200)> <风速/100> <风速%100>
+     *  风速 4500 → 23 B2 2D 00 */
+    fun manualModeCommand(wind: Int, cold: Int = 178): ByteArray {
+        val w = wind.coerceIn(4500, 5500)
+        return byteArrayOf(0x23, cold.toByte(), (w / 100).toByte(), (w % 100).toByte())
+    }
+
+    /** 全关命令：切手动最低风速 + 关风扇 + 关制冷（B6X 正确路径） */
     fun shutdownCommands(): List<ByteArray> = listOf(
-        setWindLevel(WIND_LEVEL_MIN),
-        setColdLevel(WIND_LEVEL_MIN),
+        manualModeCommand(4500, 178),
         setFanOn(false),
         setCoolOn(false),
     )
 
-    // ================= 实验功能：手动模式 0x22 候选命令 =================
-    // B6X 手动模式命令布局在反编译中存在分支歧义，以下候选供实机校准。
-    // 用户点击发送后看"状态包"里 runMode（0x13 包 byte[2] 高4位）是否变为 1。
+    // ================= 实验功能：B6X 手动命令 0x23（字节码级实证） =================
+    // B6X 手动 = 23 <冷档> <风速/100> <风速%100>，4 字节；风速控制值 4500~5500
 
-    /** 解析用户输入的 hex 字符串（"22 8C 8C" / "228c8c"），非法返回 null */
+    /** 解析用户输入的 hex 字符串（"23 B2 2D 00" / "23b22d00"），非法返回 null */
     fun parseHexInput(s: String): ByteArray? {
         val cleaned = s.replace(" ", "").replace(",", "")
         if (cleaned.isEmpty() || cleaned.length % 2 != 0) return null
@@ -55,25 +61,27 @@ object WaspWingProtocol {
         return out
     }
 
-    /** 实验预设：名称 → hex（B6X 手动模式命令为 4 字节，风速控制值 4500~5500） */
+    /** 实验预设：名称 → hex（B6X 手动 0x23 布局，风速 4500~5500；含 25/26 极性 A/B） */
     val experimentPresets: List<Pair<String, String>> = listOf(
-        // B6X 手动命令 0x22 为 4 字节（官方 setRunMode 长度 i17=4，布局待实机标定）
-        "手动4B-A 22 0C 2D 00(目标12+风速45)" to "22 0C 2D 00",
-        "手动4B-B 22 2D 00 0C(风速45+目标12)" to "22 2D 00 0C",
-        "手动4B-C 22 00 2D 00(风速45)" to "22 00 2D 00",
-        "手动4B-D 22 2D 00 00" to "22 2D 00 00",
-        // 参考：智能变频 21 xx
+        "手动 23 B2 2D 00(风速4500 冷178)" to "23 B2 2D 00",
+        "手动 23 B2 32 00(风速5000 冷178)" to "23 B2 32 00",
+        "手动 23 B2 37 00(风速5500 冷178)" to "23 B2 37 00",
+        "手动 23 C8 2D 00(风速4500 冷200)" to "23 C8 2D 00",
         "智能变频 21 12(目标18°C)" to "21 12",
-        // 标准开关命令（B5 系列同款，B6X 可能被忽略）
-        "关风扇 25 00" to "25 00",
-        "关制冷 26 00" to "26 00",
+        // 25/26 极性 A/B（官方 on=true→00，App 已按官方修正；保留 A/B 实测）
+        "风扇开? 25 00" to "25 00",
+        "风扇关? 25 01" to "25 01",
+        "制冷开? 26 00" to "26 00",
+        "制冷关? 26 01" to "26 01",
         "灯开 10 FF" to "10 FF",
         "灯关 10 00" to "10 00",
     )
 
-    /** 从 0x13 状态包解析设备状态；非 0x13 包返回 null */
+    /** 从 0x13 状态包解析设备状态；非 0x13 或长度不足返回 null */
     fun parseStatus(data: ByteArray): DeviceStatus? {
         if (data.isEmpty() || data[0].toInt() != 0x13) return null
+        // ⚠️ 短包保护：B6 布局至少需要访问 [9]，不足 10 字节直接拒绝（防越界崩溃）
+        if (data.size < 10) return null
         // 实测确认：B6X 固件实际使用 B6 布局（byte[2]=冷面温度 11~14°C 合理，
         // 而 B6X 布局把 byte[7]=0x7D 当温度会错读出 125°C）。
         // 解析 B6 布局，若结果异常则回退 B6X 布局。
