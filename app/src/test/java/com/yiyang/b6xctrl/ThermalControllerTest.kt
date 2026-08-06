@@ -19,9 +19,8 @@ class ThermalControllerTest {
     fun coldTemp_returnsShutdownCommands() {
         val c = ThermalController(config)
         val cmds = c.onTemperature(30f)
-        // 官方极性：关风扇 25 01、关制冷 26 01
-        assertTrue(cmds.has(byteArrayOf(0x25, 0x01)))
-        assertTrue(cmds.has(byteArrayOf(0x26, 0x01)))
+        // B6X 无软件停机：停机 = 最低档 4500 + 冷 178（23 B2 2D 00）
+        assertTrue(cmds.has(byteArrayOf(0x23, 0xB2.toByte(), 0x2D, 0x00)))
         assertEquals(ThermalState.OFF, c.state)
     }
 
@@ -58,8 +57,8 @@ class ThermalControllerTest {
         val c = ThermalController(config)
         c.onTemperature(45f)
         val cmds = c.onTemperature(35f)
-        assertTrue(cmds.has(byteArrayOf(0x25, 0x01)))
-        assertTrue(cmds.has(byteArrayOf(0x26, 0x01)))
+        // B6X 无软件停机：降到最低档
+        assertTrue(cmds.has(byteArrayOf(0x23, 0xB2.toByte(), 0x2D, 0x00)))
         assertEquals(ThermalState.OFF, c.state)
     }
 
