@@ -45,9 +45,15 @@ class WaspWingProtocolTest {
             byteArrayOf(0x23, 0xB2.toByte(), 0x2D, 0x00),
             WaspWingProtocol.manualModeCommand(4500, 178),
         )
+        // 实测上限：风速 6000、制冷 229
         assertArrayEquals(
-            byteArrayOf(0x23, 0xB2.toByte(), 0x37, 0x00),
-            WaspWingProtocol.manualModeCommand(5500, 178),
+            byteArrayOf(0x23, 0xE5.toByte(), 0x3C, 0x00),
+            WaspWingProtocol.manualModeCommand(6000, 229),
+        )
+        // 推荐制冷 205
+        assertArrayEquals(
+            byteArrayOf(0x23, 0xCD.toByte(), 0x3C, 0x00),
+            WaspWingProtocol.manualModeCommand(6000, 205),
         )
     }
 

@@ -31,12 +31,20 @@ object WaspWingProtocol {
     fun setLightOn(on: Boolean): ByteArray = byteArrayOf(0x10, if (on) 0xFF.toByte() else 0x00)
 
     /** B6X 手动模式命令（0x23，4 字节，字节码级实证）：
-     *  23 <制冷档(178/200)> <风速/100> <风速%100>
-     *  风速 4500 → 23 B2 2D 00 */
+     *  23 <制冷档> <风速/100> <风速%100>
+     *  风速 4500 → 23 B2 2D 00；实测上限：风速 4500~6000，制冷 178~229(推荐205) */
     fun manualModeCommand(wind: Int, cold: Int = 178): ByteArray {
-        val w = wind.coerceIn(4500, 5500)
+        val w = wind.coerceIn(WIND_MIN, WIND_MAX)
         return byteArrayOf(0x23, cold.toByte(), (w / 100).toByte(), (w % 100).toByte())
     }
+
+    /** B6X 风速控制值范围（实测上限 6000） */
+    const val WIND_MIN = 4500
+    const val WIND_MAX = 6000
+    /** B6X 制冷档范围（实测最高 229，推荐 205） */
+    const val COLD_MIN = 178
+    const val COLD_MAX = 229
+    const val COLD_RECOMMENDED = 205
 
     /** "停机"命令：实测确认 B6X 无软件关机（25/26 无效、风速0无效），
      *  最低档 4500 + 制冷 178 是设备能达到的最低功耗状态 */
@@ -60,13 +68,15 @@ object WaspWingProtocol {
         return out
     }
 
-    /** 实验预设：名称 → hex（B6X 手动 0x23 布局，风速 4500~5500；25/26 可能对 B6X 无效） */
+    /** 实验预设：名称 → hex（B6X 手动 0x23，风速 4500~6000，制冷 178~229/推荐205） */
     val experimentPresets: List<Pair<String, String>> = listOf(
         "手动 23 B2 2D 00(风速4500最低 冷178)" to "23 B2 2D 00",
         "手动 23 B2 32 00(风速5000 冷178)" to "23 B2 32 00",
-        "手动 23 B2 37 00(风速5500最高 冷178)" to "23 B2 37 00",
-        "手动 23 C8 2D 00(风速4500 冷200)" to "23 C8 2D 00",
-        // 0x23 风速 0 候选：可能代表"关"（需实测）
+        "手动 23 B2 3C 00(风速6000最高 冷178)" to "23 B2 3C 00",
+        "手动 23 CD 2D 00(风速4500 冷205推荐)" to "23 CD 2D 00",
+        "手动 23 E5 2D 00(风速4500 冷229最高)" to "23 E5 2D 00",
+        "手动 23 CD 3C 00(风速6000 冷205推荐满)" to "23 CD 3C 00",
+        // 0x23 风速 0 候选：实测无效（B6X 合法范围 4500~6000）
         "关? 23 B2 00 00(风速0 冷178)" to "23 B2 00 00",
         "关? 23 00 00 00(风速0 冷0)" to "23 00 00 00",
         // 参考：智能变频 21 xx
