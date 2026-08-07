@@ -1,14 +1,17 @@
 package com.yiyang.b6xctrl.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -29,13 +32,16 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yiyang.b6xctrl.control.ControlConfig
 import com.yiyang.b6xctrl.control.TempLevel
 import com.yiyang.b6xctrl.control.TempSource
+import kotlin.math.roundToInt
 
 /** 档位名称（A/B/C/C'/D） */
 private fun levelName(i: Int): String = when (i) {
@@ -125,23 +131,27 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                     )
-                    Text("触发温度：${st.threshold.floatValue.toInt()}°C")
-                    Slider(
+                    EditableSlider(
+                        label = "触发温度",
+                        suffix = "°C",
                         value = st.threshold.floatValue,
+                        range = 20f..70f,
+                        isFloat = true,
                         onValueChange = { st.threshold.floatValue = it },
-                        valueRange = 20f..70f,
                     )
-                    Text("制冷档：${st.cold.floatValue.toInt()}（1~200）")
-                    Slider(
+                    EditableSlider(
+                        label = "制冷档",
+                        suffix = "",
                         value = st.cold.floatValue,
+                        range = 1f..230f,
                         onValueChange = { st.cold.floatValue = it },
-                        valueRange = 1f..200f,
                     )
-                    Text("风速：${st.wind.floatValue.toInt()}（4000~6000）")
-                    Slider(
+                    EditableSlider(
+                        label = "风速",
+                        suffix = "",
                         value = st.wind.floatValue,
+                        range = 4000f..6000f,
                         onValueChange = { st.wind.floatValue = it },
-                        valueRange = 4000f..6000f,
                     )
                 }
             }
@@ -213,6 +223,94 @@ fun SettingsScreen(
         }
     }
 }
+
+/** 可编辑滑杆：滑杆拖动 + 点击数值切换为输入框直接输入。 */
+@Composable
+private fun EditableSlider(
+    label: String,
+    suffix: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    isFloat: Boolean = false,
+    onValueChange: (Float) -> Unit,
+) {
+    var editing by remember { mutableStateOf(false) }
+    var text by remember { mutableStateOf(formatSliderValue(value, isFloat)) }
+
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "$label：",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            if (editing) {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { newText ->
+                        text = newText
+                        // 实时解析：合法输入立即写回，保证不点"确定"直接"保存"也能拿到最新值
+                        newText.toFloatOrNull()?.let { parsed ->
+                            val clamped = parsed.coerceIn(range)
+                            onValueChange(if (isFloat) clamped else clamped.roundToInt().toFloat())
+                        }
+                    },
+                    singleLine = true,
+                    // 温度带一位小数 → Decimal 键盘（Number 键盘没有小数点键）
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = if (isFloat) KeyboardType.Decimal else KeyboardType.Number,
+                    ),
+                    modifier = Modifier.width(110.dp),
+                )
+            } else {
+                Text(
+                    "${formatSliderValue(value, isFloat)}$suffix",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clickable {
+                            text = formatSliderValue(value, isFloat)
+                            editing = true
+                        }
+                        .padding(6.dp),
+                )
+            }
+        }
+        Slider(
+            value = value.coerceIn(range),
+            onValueChange = {
+                // 整数档位取整，与"确定"保存逻辑一致（避免显示 round 与保存截断差 1）
+                val v = if (isFloat) it else it.roundToInt().toFloat()
+                onValueChange(v)
+                text = formatSliderValue(v, isFloat)
+            },
+            valueRange = range,
+        )
+        if (editing) {
+            Row {
+                Spacer(Modifier.weight(1f))
+                Button(
+                    onClick = {
+                        val parsed = text.toFloatOrNull()
+                        if (parsed != null) {
+                            val clamped = parsed.coerceIn(range)
+                            onValueChange(if (isFloat) clamped else clamped.roundToInt().toFloat())
+                            text = formatSliderValue(clamped, isFloat)
+                        } else {
+                            text = formatSliderValue(value, isFloat)
+                        }
+                        editing = false
+                    },
+                    modifier = Modifier.height(32.dp),
+                ) { Text("确定", style = MaterialTheme.typography.labelSmall) }
+            }
+        }
+    }
+}
+
+private fun formatSliderValue(v: Float, isFloat: Boolean): String =
+    if (isFloat) "%.1f".format(v) else v.roundToInt().toString()
 
 /** 一档的可编辑状态（用可变状态持有，避免每次重建） */
 private class LevelEditState(
