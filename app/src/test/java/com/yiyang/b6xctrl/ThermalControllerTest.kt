@@ -20,10 +20,10 @@ class ThermalControllerTest {
     private val aCmd = byteArrayOf(0x23, 0x01, 0x2D, 0x00)
     /** B 档：≥33°C → 制冷40 风4600 = 23 28 2E 00 */
     private val bCmd = byteArrayOf(0x23, 0x28, 0x2E, 0x00)
-    /** C 档：≥36°C → 制冷160 风5200 = 23 A0 34 00 */
-    private val cCmd = byteArrayOf(0x23, 0xA0.toByte(), 0x34, 0x00)
-    /** C' 档：≥38°C → 制冷180 风5800 = 23 B4 3A 00 */
-    private val cPrimeCmd = byteArrayOf(0x23, 0xB4.toByte(), 0x3A, 0x00)
+    /** C 档：≥36°C → 制冷170 风5804 = 23 AA 3A 04 */
+    private val cCmd = byteArrayOf(0x23, 0xAA.toByte(), 0x3A, 0x04)
+    /** C' 档：≥38°C → 制冷180 风6000 = 23 B4 3C 00 */
+    private val cPrimeCmd = byteArrayOf(0x23, 0xB4.toByte(), 0x3C, 0x00)
     /** D 档：≥39°C → 制冷200 风6000 = 23 C8 3C 00 */
     private val dCmd = byteArrayOf(0x23, 0xC8.toByte(), 0x3C, 0x00)
 

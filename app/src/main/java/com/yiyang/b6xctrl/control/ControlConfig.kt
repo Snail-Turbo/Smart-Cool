@@ -23,12 +23,12 @@ data class ControlConfig(
     val levels: List<TempLevel> = listOf(
         TempLevel(30f, 1, 4500),   // A：<30°C 待机档
         TempLevel(33f, 40, 4600),  // B：≥33°C 平衡档
-        TempLevel(36f, 160, 5200), // C：≥36°C 中档
-        TempLevel(38f, 180, 5800), // C'：≥38°C 中高档（C 与 D 之间）
+        TempLevel(36f, 170, 5804), // C：≥36°C 中档
+        TempLevel(38f, 180, 6000), // C'：≥38°C 中高档（C 与 D 之间）
         TempLevel(39f, 200, 6000), // D：≥39°C 满档
     ),
     val sampleIntervalMs: Long = 2000,
-    val tempSource: TempSource = TempSource.CPU_GPU_MAX,
+    val tempSource: TempSource = TempSource.BATTERY,
     // 界面调试开关（默认关闭，可在设置页开启）
     val showStatusPacket: Boolean = false,
     val showRecentCommands: Boolean = false,
