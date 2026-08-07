@@ -188,11 +188,11 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
         }
 
         if (!ui.autoMode) {
-            // 手动控制（0-100%，映射 B6X 风速 4000~6000 / 制冷 1~200）
+            // 手动控制（0-100%，映射 B6X 风速 4000~6000 / 制冷 1~230）
             var windPercent by remember { mutableStateOf(50) }
             var coldPercent by remember { mutableStateOf(50) }
             val windLevel = 4000 + ((6000 - 4000) * windPercent / 100)
-            val coldLevel = 1 + ((200 - 1) * coldPercent / 100)
+            val coldLevel = 1 + ((230 - 1) * coldPercent / 100)
             ui.ble.deviceStatus?.let { s ->
                 Text(
                     "当前模式：${runModeName(s.runMode)}",
@@ -208,12 +208,12 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 },
                 valueRange = 0f..100f,
             )
-            Text("制冷强度：$coldPercent%（1~200）", style = MaterialTheme.typography.labelMedium)
+            Text("制冷强度：$coldPercent%（1~230）", style = MaterialTheme.typography.labelMedium)
             Slider(
                 value = coldPercent.toFloat(),
                 onValueChange = {
                     coldPercent = it.toInt()
-                    viewModel.setManualColdLevel(1 + ((200 - 1) * coldPercent / 100))
+                    viewModel.setManualColdLevel(1 + ((230 - 1) * coldPercent / 100))
                 },
                 valueRange = 0f..100f,
             )
@@ -288,9 +288,9 @@ private fun TempCurveSection(
                                 levels = levels,
                                 valueSelector = { it.cold },
                                 valueMin = 0f,
-                                valueMax = 210f,
+                                valueMax = 230f,
                                 valueLabel = { "$it" },
-                                title = "制冷档（0~200）",
+                                title = "制冷档（1~230）",
                                 color = Color(0xFF00838F),
                                 currentTempC = currentTempC,
                                 currentLevelIndex = currentLevelIndex,
@@ -315,9 +315,9 @@ private fun TempCurveSection(
                             levels = levels,
                             valueSelector = { it.cold },
                             valueMin = 0f,
-                            valueMax = 210f,
+                            valueMax = 230f,
                             valueLabel = { "$it" },
-                            title = "制冷档（0~200）",
+                            title = "制冷档（1~230）",
                             color = Color(0xFF00838F),
                             currentTempC = currentTempC,
                             currentLevelIndex = currentLevelIndex,

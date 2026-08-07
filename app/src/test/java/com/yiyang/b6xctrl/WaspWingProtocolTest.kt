@@ -45,15 +45,37 @@ class WaspWingProtocolTest {
             byteArrayOf(0x23, 0xB2.toByte(), 0x2D, 0x00),
             WaspWingProtocol.manualModeCommand(4500, 178),
         )
-        // 实测上限：风速 6000、制冷 200（D 档满档）
+        // 默认 D 档值：风速 6000、制冷 200
         assertArrayEquals(
             byteArrayOf(0x23, 0xC8.toByte(), 0x3C, 0x00),
             WaspWingProtocol.manualModeCommand(6000, 200),
         )
-        // 制冷 clamp：超上限 229 会被压到 200
+        // 230 是合法上限，原样透传；229 保留原值
         assertArrayEquals(
-            byteArrayOf(0x23, 0xC8.toByte(), 0x3C, 0x00),
+            byteArrayOf(0x23, 0xE6.toByte(), 0x3C, 0x00),
+            WaspWingProtocol.manualModeCommand(6000, 230),
+        )
+        assertArrayEquals(
+            byteArrayOf(0x23, 0xE5.toByte(), 0x3C, 0x00),
             WaspWingProtocol.manualModeCommand(6000, 229),
+        )
+        // 制冷 clamp：超上限 230 被压到 230（231、255）
+        assertArrayEquals(
+            byteArrayOf(0x23, 0xE6.toByte(), 0x3C, 0x00),
+            WaspWingProtocol.manualModeCommand(6000, 231),
+        )
+        assertArrayEquals(
+            byteArrayOf(0x23, 0xE6.toByte(), 0x3C, 0x00),
+            WaspWingProtocol.manualModeCommand(6000, 255),
+        )
+        // 制冷 clamp：低于下限 1 被压到 1（0、负数）
+        assertArrayEquals(
+            byteArrayOf(0x23, 0x01, 0x3C, 0x00),
+            WaspWingProtocol.manualModeCommand(6000, 0),
+        )
+        assertArrayEquals(
+            byteArrayOf(0x23, 0x01, 0x3C, 0x00),
+            WaspWingProtocol.manualModeCommand(6000, -5),
         )
     }
 
