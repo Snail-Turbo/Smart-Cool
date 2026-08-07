@@ -34,7 +34,7 @@ object WaspWingProtocol {
      *  23 <制冷档> <风速/100> <风速%100>
      *  字段级可选：byte2=0x00 制冷不调整；byte3=0x00 风速不调整
      *  实测范围：风速 4000~6000（用户自定安全区间，低于4000可能停转且不可命令重启），
-     *  制冷 1~178（用户上限178，官方手动就178/200两档，设备能力到229） */
+     *  制冷 1~200（设备能力到229，曲线D档用200） */
     fun manualModeCommand(wind: Int, cold: Int = 178): ByteArray {
         val w = wind.coerceIn(WIND_MIN, WIND_MAX)
         val c = cold.coerceIn(COLD_MIN, COLD_MAX)
@@ -75,7 +75,7 @@ object WaspWingProtocol {
         return out
     }
 
-    /** 实验预设：名称 → hex（B6X 手动 0x23，风速 4000~6000，制冷 1~178） */
+    /** 实验预设：名称 → hex（B6X 手动 0x23，风速 4000~6000，制冷 1~200） */
     val experimentPresets: List<Pair<String, String>> = listOf(
         "平衡档 23 28 2E 00(冷40 风4600)" to "23 28 2E 00",
         "手动 23 B2 2D 00(冷178 风4500)" to "23 B2 2D 00",

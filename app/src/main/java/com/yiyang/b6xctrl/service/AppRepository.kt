@@ -21,7 +21,7 @@ class AppRepository(private val context: Context) {
     private val keyShowStatusPacket = booleanPreferencesKey("show_status_packet")
     private val keyShowRecentCommands = booleanPreferencesKey("show_recent_commands")
 
-    // 4 档：每档 3 个 key（阈值/制冷/风速）
+    // 每档 3 个 key（阈值/制冷/风速）
     private fun keyTh(i: Int) = floatPreferencesKey("level_${i}_threshold")
     private fun keyCold(i: Int) = intPreferencesKey("level_${i}_cold")
     private fun keyWind(i: Int) = intPreferencesKey("level_${i}_wind")
@@ -54,6 +54,8 @@ class AppRepository(private val context: Context) {
             }
             p[keyInterval] = cfg.sampleIntervalMs.toInt()
             p[keyTempSource] = cfg.tempSource.ordinal
+            p[keyShowStatusPacket] = cfg.showStatusPacket
+            p[keyShowRecentCommands] = cfg.showRecentCommands
         }
     }
 }
