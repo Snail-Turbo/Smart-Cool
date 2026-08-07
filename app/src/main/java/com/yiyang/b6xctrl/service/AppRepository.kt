@@ -39,7 +39,7 @@ class AppRepository(private val context: Context) {
         ControlConfig(
             levels = levels,
             sampleIntervalMs = p[keyInterval]?.toLong() ?: defaults.sampleIntervalMs,
-            tempSource = TempSource.entries.getOrElse(p[keyTempSource] ?: 0) { TempSource.CPU_GPU_MAX },
+            tempSource = TempSource.entries.getOrElse(p[keyTempSource] ?: defaults.tempSource.ordinal) { defaults.tempSource },
             showStatusPacket = p[keyShowStatusPacket] ?: false,
             showRecentCommands = p[keyShowRecentCommands] ?: false,
         )

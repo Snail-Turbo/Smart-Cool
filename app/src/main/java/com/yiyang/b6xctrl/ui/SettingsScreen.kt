@@ -203,7 +203,7 @@ fun SettingsScreen(
                         st.wind.floatValue = def.wind.toFloat()
                     }
                     interval = ControlConfig().sampleIntervalMs.toFloat()
-                    tempSource = TempSource.CPU_GPU_MAX
+                    tempSource = ControlConfig().tempSource
                     showStatusPacket = false
                     showRecentCommands = false
                 },
