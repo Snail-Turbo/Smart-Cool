@@ -1,0 +1,17 @@
+# Android / Gradle 生成物
+build/
+.gradle/
+.kotlin/
+local.properties
+*.apk
+*.aab
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# 系统
+captures/
+.externalNativeBuild/
+.cxx/
