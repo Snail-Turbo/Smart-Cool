@@ -4,7 +4,7 @@ import com.yiyang.b6xctrl.protocol.WaspWingProtocol
 
 enum class ThermalState { OFF, RUNNING }
 
-/** 4 档温控曲线控制器（PC 风扇式）：
+/** 5 档温控曲线控制器（PC 风扇式）：
  *  温度达到某档阈值即切到该档，档位变化才下发命令（避免重复刷）。 */
 class ThermalController(config: ControlConfig) {
 
