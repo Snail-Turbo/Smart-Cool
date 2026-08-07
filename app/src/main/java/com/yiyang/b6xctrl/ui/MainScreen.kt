@@ -435,7 +435,9 @@ private fun levelName2(i: Int): String = when (i) {
     else -> "D"
 }
 
-/** 实验面板：发送原始 hex 命令，校准 B6X 手动模式(0x23)等命令布局 */
+/** 实验面板：发送原始 hex 命令，校准 B6X 手动模式(0x23)等命令布局。
+ *  注意：本面板内容由外层主 Column 的 verticalScroll 统一滚动，
+ *  这里不要再套 verticalScroll（同方向嵌套滚动会触发 IllegalStateException 闪退）。 */
 @Composable
 private fun ExperimentPanel(viewModel: MainViewModel) {
     var hexInput by remember { mutableStateOf("") }
@@ -443,7 +445,7 @@ private fun ExperimentPanel(viewModel: MainViewModel) {
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
-            Modifier.padding(12.dp).verticalScroll(rememberScrollState()),
+            Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text("实验功能（校准协议用）", style = MaterialTheme.typography.titleSmall)

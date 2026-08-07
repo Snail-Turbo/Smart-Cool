@@ -101,9 +101,26 @@ class TempReader(context: Context) {
     fun readZoneType(zonePath: String): String? =
         readFile(File(zonePath, "type").absolutePath)?.trim()
 
-    /** 电池温度（0.1°C → °C），用 sticky 广播 ACTION_BATTERY_CHANGED（无需权限/无需 root）。
-     *  与 Scene 工具箱同款方式；范围过滤。 */
+    /** 电池温度（0.1°C → °C）。
+     *  优先读实时 sysfs（/sys/class/power_supply/battery/temp 或 bms/temp，十分之一度，
+     *  随充电/负载实时变化），失败再 fallback 到 sticky 广播 ACTION_BATTERY_CHANGED
+     *  （系统按阈值低频推送，会滞后）。范围过滤。 */
     private fun readBatteryTempC(): Float? {
+        // 1) 优先：实时 sysfs（多个候选路径）
+        val sysfsPaths = listOf(
+            "/sys/class/power_supply/battery/temp",
+            "/sys/class/power_supply/bms/temp",
+            "/sys/class/power_supply/main/temp",
+        )
+        for (path in sysfsPaths) {
+            val raw = readFile(path)?.trim()
+            val deci = raw?.toIntOrNull()
+            if (deci != null && deci >= 0) {
+                val c = deci / 10f
+                if (c in BATT_MIN_C..BATT_MAX_C) return c
+            }
+        }
+        // 2) fallback：sticky 广播（0.1°C）
         val intent = appContext.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
             ?: return null
         val deci = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1)
