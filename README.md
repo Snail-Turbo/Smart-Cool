@@ -25,6 +25,10 @@
 - ✅ **设备掉电保持**：固件记住最后档位，断电/重启无需重设
 - ✅ **设置持久化**：DataStore 保存档位曲线、温度源、采样间隔、调试开关
 
+## 界面预览
+
+![SmartCool Pad 运行界面](docs/images/app-screenshot.jpg)
+
 ## 工作原理
 
 ```text
