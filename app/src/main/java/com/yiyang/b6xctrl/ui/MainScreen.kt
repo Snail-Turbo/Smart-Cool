@@ -100,7 +100,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     )
                     // 分开显示两个速度相关字段，避免混淆
                     Text(
-                        "风速档 ${s.windLevel}（范围4500~6000） | 转速值 ${s.speedRpm}",
+                        "风速档 ${s.windLevel}（范围4500~7500） | 转速值 ${s.speedRpm}",
                         style = MaterialTheme.typography.bodySmall,
                     )
                     Text(
@@ -188,10 +188,10 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
         }
 
         if (!ui.autoMode) {
-            // 手动控制（0-100%，映射 B6X 风速 4000~6000 / 制冷 1~230）
+            // 手动控制（0-100%，映射 B6X 风速 4000~7500 / 制冷 1~230）
             var windPercent by remember { mutableStateOf(50) }
             var coldPercent by remember { mutableStateOf(50) }
-            val windLevel = 4000 + ((6000 - 4000) * windPercent / 100)
+            val windLevel = 4000 + ((7500 - 4000) * windPercent / 100)
             val coldLevel = 1 + ((230 - 1) * coldPercent / 100)
             ui.ble.deviceStatus?.let { s ->
                 Text(
@@ -199,12 +199,12 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     style = MaterialTheme.typography.labelMedium,
                 )
             }
-            Text("风扇速度：$windPercent%（4000~6000，勿低于4000否则停转）", style = MaterialTheme.typography.labelMedium)
+            Text("风扇速度：$windPercent%（4000~7500，勿低于4000否则停转）", style = MaterialTheme.typography.labelMedium)
             Slider(
                 value = windPercent.toFloat(),
                 onValueChange = {
                     windPercent = it.toInt()
-                    viewModel.setManualWindLevel(4000 + ((6000 - 4000) * windPercent / 100))
+                    viewModel.setManualWindLevel(4000 + ((7500 - 4000) * windPercent / 100))
                 },
                 valueRange = 0f..100f,
             )
@@ -275,9 +275,9 @@ private fun TempCurveSection(
                                 levels = levels,
                                 valueSelector = { it.wind },
                                 valueMin = 4000f,
-                                valueMax = 6000f,
+                                valueMax = 7500f,
                                 valueLabel = { "${it / 100}" },
-                                title = "风速档（4500~6000）",
+                                title = "风速档（4500~7500）",
                                 color = Color(0xFF1B5E20),
                                 currentTempC = currentTempC,
                                 currentLevelIndex = currentLevelIndex,
@@ -304,9 +304,9 @@ private fun TempCurveSection(
                             levels = levels,
                             valueSelector = { it.wind },
                             valueMin = 4000f,
-                            valueMax = 6000f,
+                            valueMax = 7500f,
                             valueLabel = { "${it / 100}" },
-                            title = "风速档（4500~6000）",
+                            title = "风速档（4500~7500）",
                             color = Color(0xFF1B5E20),
                             currentTempC = currentTempC,
                             currentLevelIndex = currentLevelIndex,
@@ -456,7 +456,7 @@ private fun ExperimentPanel(viewModel: MainViewModel) {
             )
             Text(
                 "说明：0x23 是 B6X 手动命令，4 字节：23 <制冷档> <风速档/100> <风速档%100>。" +
-                    "风速档范围 4500~6000（4500=最低，6000=最高）。注意：上面的「转速值」和「风速档」是两个不同字段。" +
+                    "风速档范围 4500~7500（4500=最低，7500=最高）。注意：上面的「转速值」和「风速档」是两个不同字段。" +
                     "25/26 开关命令对 B6X 可能无效（那是 B3/B5 系列的）。",
                 style = MaterialTheme.typography.bodySmall,
             )
