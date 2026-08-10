@@ -39,7 +39,7 @@ class ThermalController(config: ControlConfig) {
         return listOf(WaspWingProtocol.manualModeCommand(lvl.wind, lvl.cold))
     }
 
-    /** 手动模式：直接设风速控制值(4000~6000)与制冷档（B6X 用 0x23 手动命令）。 */
+    /** 手动模式：直接设风速控制值(4000~7500)与制冷档（B6X 用 0x23 手动命令）。 */
     fun onManualLevels(windLevel: Int, coldLevel: Int): List<ByteArray> {
         currentWindLevel = windLevel.coerceIn(WIND_MIN, WIND_MAX)
         currentColdLevel = coldLevel.coerceIn(COLD_MIN, COLD_MAX)
@@ -63,9 +63,9 @@ class ThermalController(config: ControlConfig) {
     }
 
     companion object {
-        /** B6X 风速控制值范围（用户自定：最低4000避免停转，最高6000） */
+        /** B6X 风速控制值范围（用户自定：最低4000避免停转，最高7500） */
         const val WIND_MIN = 4000
-        const val WIND_MAX = 6000
+        const val WIND_MAX = 7500
         /** B6X 制冷档范围（设备能力到 229，可调上限 230） */
         const val COLD_MIN = 1
         const val COLD_MAX = 230

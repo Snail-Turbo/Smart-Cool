@@ -33,7 +33,7 @@ object WaspWingProtocol {
     /** B6X 手动模式命令（0x23，4 字节，字节码级实证）：
      *  23 <制冷档> <风速/100> <风速%100>
      *  字段级可选：byte2=0x00 制冷不调整；byte3=0x00 风速不调整
-     *  实测范围：风速 4000~6000（用户自定安全区间，低于4000可能停转且不可命令重启），
+     *  实测范围：风速 4000~7500（用户自定安全区间，低于4000可能停转且不可命令重启），
      *  制冷 1~230（设备能力到229，可调上限230） */
     fun manualModeCommand(wind: Int, cold: Int = 178): ByteArray {
         val w = wind.coerceIn(WIND_MIN, WIND_MAX)
@@ -41,9 +41,9 @@ object WaspWingProtocol {
         return byteArrayOf(0x23, c.toByte(), (w / 100).toByte(), (w % 100).toByte())
     }
 
-    /** B6X 风速范围（用户自定：最低4000避免停转不可逆，最高6000） */
+    /** B6X 风速范围（用户自定：最低4000避免停转不可逆，最高7500） */
     const val WIND_MIN = 4000
-    const val WIND_MAX = 6000
+    const val WIND_MAX = 7500
     /** B6X 制冷档范围（设备能力到 229，可调上限 230） */
     const val COLD_MIN = 1
     const val COLD_MAX = 230
@@ -60,7 +60,7 @@ object WaspWingProtocol {
     )
 
     // ================= 实验功能：B6X 手动命令 0x23（字节码级实证） =================
-    // B6X 手动 = 23 <冷档> <风速/100> <风速%100>，4 字节；风速控制值 4500~6000
+    // B6X 手动 = 23 <冷档> <风速/100> <风速%100>，4 字节；风速控制值 4500~7500
 
     /** 解析用户输入的 hex 字符串（"23 B2 2D 00" / "23b22d00"），非法返回 null */
     fun parseHexInput(s: String): ByteArray? {
@@ -75,7 +75,7 @@ object WaspWingProtocol {
         return out
     }
 
-    /** 实验预设：名称 → hex（B6X 手动 0x23，风速 4000~6000，制冷 1~230） */
+    /** 实验预设：名称 → hex（B6X 手动 0x23，风速 4000~7500，制冷 1~230） */
     val experimentPresets: List<Pair<String, String>> = listOf(
         "平衡档 23 28 2E 00(冷40 风4600)" to "23 28 2E 00",
         "手动 23 B2 2D 00(冷178 风4500)" to "23 B2 2D 00",
@@ -83,7 +83,7 @@ object WaspWingProtocol {
         "手动 23 B2 3C 00(冷178 风6000满)" to "23 B2 3C 00",
         "手动 23 50 32 00(冷80 风5000)" to "23 50 32 00",
         "手动 23 CD 3C 00(冷205 风6000满)" to "23 CD 3C 00",
-        // 0x23 风速 0 候选：实测无效（B6X 合法范围 4000~6000）
+        // 0x23 风速 0 候选：实测无效（B6X 合法范围 4000~7500）
         "关? 23 B2 00 00(风速0 冷178)" to "23 B2 00 00",
         "关? 23 00 00 00(风速0 冷0)" to "23 00 00 00",
         // 参考：智能变频 21 xx

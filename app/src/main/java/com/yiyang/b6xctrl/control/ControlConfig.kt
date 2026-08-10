@@ -15,7 +15,7 @@ enum class TempSource(val label: String) {
 data class TempLevel(
     val thresholdC: Float, // 触发该档的温度阈值（°C）
     val cold: Int,         // 制冷档（0x23 第二字节）
-    val wind: Int,         // 风速控制值（0x23 第三四字节，4000~6000）
+    val wind: Int,         // 风速控制值（0x23 第三四字节，4000~7500）
 )
 
 /** 5 档温控曲线（PC 风扇式）：A<B<C<C'<D，温度达到阈值升档 */

@@ -150,7 +150,7 @@ fun SettingsScreen(
                         label = "风速",
                         suffix = "",
                         value = st.wind.floatValue,
-                        range = 4000f..6000f,
+                        range = 4000f..7500f,
                         onValueChange = { st.wind.floatValue = it },
                     )
                 }
