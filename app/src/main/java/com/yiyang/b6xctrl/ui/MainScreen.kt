@@ -22,6 +22,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yiyang.b6xctrl.ble.BleConnectionState
 import com.yiyang.b6xctrl.protocol.WaspWingProtocol
+import kotlinx.coroutines.delay
 
 /** 温度格式化：null/NaN/越界显示 "--" */
 private fun fmtTemp(v: Float?): String =
@@ -75,10 +77,23 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
             Column(Modifier.padding(16.dp)) {
                 Text("连接状态", style = MaterialTheme.typography.labelMedium)
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 自动重连倒计时（秒），随 reconnectDelayMs 变化重启
+                    var reconnectCountdown by remember(ui.ble.reconnectDelayMs) {
+                        mutableStateOf((ui.ble.reconnectDelayMs ?: 0L) / 1000L)
+                    }
+                    LaunchedEffect(ui.ble.reconnectDelayMs) {
+                        var remaining = (ui.ble.reconnectDelayMs ?: 0L) / 1000L
+                        while (remaining > 0) {
+                            reconnectCountdown = remaining
+                            delay(1000L)
+                            remaining--
+                        }
+                        reconnectCountdown = 0L
+                    }
                     Text(
                         when {
                             ui.ble.connectionState == BleConnectionState.DISCONNECTED &&
-                                ui.ble.autoReconnecting -> "已断连，自动重连中…"
+                                ui.ble.autoReconnecting -> "已断连，${reconnectCountdown}s 后自动重连…"
                             ui.ble.connectionState == BleConnectionState.DISCONNECTED -> "未连接"
                             ui.ble.connectionState == BleConnectionState.SCANNING -> "扫描中…"
                             ui.ble.connectionState == BleConnectionState.CONNECTING -> "连接中…"
