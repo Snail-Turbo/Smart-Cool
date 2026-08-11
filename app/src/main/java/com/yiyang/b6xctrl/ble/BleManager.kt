@@ -23,6 +23,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/** 连接超时：CONNECTING 持续超过该时长仍未成功则清理并重试（防一直卡\"连接中\"） */
+private const val CONNECT_TIMEOUT_MS = 10_000L
+
 class BleManager(context: Context) {
 
     private val appContext = context.applicationContext
@@ -50,6 +53,15 @@ class BleManager(context: Context) {
             if (userInitiatedDisconnect) return
             val dev = lastDevice ?: return
             connect(dev)
+        }
+    }
+
+    /** 连接超时保护：10s 内未成功则清理并重试，避免一直卡在"连接中" */
+    private val connectTimeoutRunnable = object : Runnable {
+        override fun run() {
+            if (_uiState.value.connectionState == BleConnectionState.CONNECTING) {
+                handleDisconnected()
+            }
         }
     }
 
@@ -88,29 +100,22 @@ class BleManager(context: Context) {
 
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
-            if (newState == BluetoothGatt.STATE_CONNECTED) {
+            if (newState == BluetoothGatt.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
                 gatt.discoverServices()
+            } else if (newState == BluetoothGatt.STATE_CONNECTED) {
+                // 底层返回已连接但 status 异常 → 实际未成功，清理并重试
+                handleDisconnected()
             } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
-                closeGatt()
-                _uiState.value = BleUiState(
-                    connectionState = BleConnectionState.DISCONNECTED,
-                    deviceName = _uiState.value.deviceName,
-                )
-                // 非用户主动断开 → 自动重连（指数退避：3s,6s,12s,24s,30s 封顶）
-                if (!userInitiatedDisconnect && lastDevice != null) {
-                    reconnectAttempts++
-                    val delayMs = min(30_000L, 3_000L * (1L shl min(reconnectAttempts - 1, 3)))
-                    autoReconnecting = true
-                    mainHandler.postDelayed(autoReconnectRunnable, delayMs)
-                } else {
-                    autoReconnecting = false
-                }
-                userInitiatedDisconnect = false
+                handleDisconnected()
             }
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-            if (status != BluetoothGatt.GATT_SUCCESS) return
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                // 服务发现失败：清理并重试，避免 UI 一直卡在"连接中"
+                handleDisconnected()
+                return
+            }
             val service = gatt.getService(UUID.fromString(WaspWingProtocol.SERVICE_UUID)) ?: return
             val readChar = service.getCharacteristic(UUID.fromString(WaspWingProtocol.READ_CHAR_UUID)) ?: return
             writeCharacteristic = service.getCharacteristic(UUID.fromString(WaspWingProtocol.WRITE_CHAR_UUID))
@@ -128,8 +133,14 @@ class BleManager(context: Context) {
             reconnectAttempts = 0
             autoReconnecting = false
             mainHandler.removeCallbacks(autoReconnectRunnable)
+            mainHandler.removeCallbacks(connectTimeoutRunnable)
 
-            _uiState.value = _uiState.value.copy(connectionState = BleConnectionState.CONNECTED)
+            // 刷新设备名：连接成功后系统已读取远端 GAP 名字，避免直连时只显示 MAC
+            val remoteName = gatt.device.name
+            _uiState.value = _uiState.value.copy(
+                connectionState = BleConnectionState.CONNECTED,
+                deviceName = if (remoteName.isNullOrBlank()) _uiState.value.deviceName else remoteName,
+            )
             // 请求状态推送
             sendCommand(WaspWingProtocol.openReadNotification())
         }
@@ -173,13 +184,18 @@ class BleManager(context: Context) {
     }
 
     fun connect(device: BluetoothDevice) {
+        // 先清理旧连接：同设备重复 connectGatt 而旧 gatt 未 close，会丢回调卡在"连接中"
+        closeGatt()
         lastDevice = device
         userInitiatedDisconnect = false
         mainHandler.removeCallbacks(autoReconnectRunnable)
+        mainHandler.removeCallbacks(connectTimeoutRunnable)
         _uiState.value = _uiState.value.copy(
             connectionState = BleConnectionState.CONNECTING,
             deviceName = device.name ?: device.address,
         )
+        // 连接超时保护：10s 未成功则清理并走重试
+        mainHandler.postDelayed(connectTimeoutRunnable, CONNECT_TIMEOUT_MS)
         gatt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             device.connectGatt(appContext, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
         } else {
@@ -203,6 +219,7 @@ class BleManager(context: Context) {
         userInitiatedDisconnect = true
         autoReconnecting = false
         mainHandler.removeCallbacks(autoReconnectRunnable)
+        mainHandler.removeCallbacks(connectTimeoutRunnable)
         reconnectAttempts = 0
         gatt?.disconnect()
     }
@@ -263,6 +280,25 @@ class BleManager(context: Context) {
         gatt?.close()
         gatt = null
         writeCharacteristic = null
+    }
+
+    /** 断连/失败统一处理：清理连接、复位状态、按指数退避安排自动重连 */
+    private fun handleDisconnected() {
+        closeGatt()
+        mainHandler.removeCallbacks(connectTimeoutRunnable)
+        _uiState.value = _uiState.value.copy(
+            connectionState = BleConnectionState.DISCONNECTED,
+            deviceName = _uiState.value.deviceName,
+        )
+        if (!userInitiatedDisconnect && lastDevice != null) {
+            reconnectAttempts++
+            val delayMs = min(30_000L, 3_000L * (1L shl min(reconnectAttempts - 1, 3)))
+            autoReconnecting = true
+            mainHandler.postDelayed(autoReconnectRunnable, delayMs)
+        } else {
+            autoReconnecting = false
+        }
+        userInitiatedDisconnect = false
     }
 
     /** 以 NO_RESPONSE 写模式写一条命令；返回系统是否接受本次写入（主线程调用，不 sleep）。 */
