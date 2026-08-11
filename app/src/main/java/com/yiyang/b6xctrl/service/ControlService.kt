@@ -77,21 +77,33 @@ class ControlService : Service() {
         scope.launch {
             bleManager.uiState.collect { ble ->
                 _uiState.value = _uiState.value.copy(ble = ble)
-                // 连接成功 → 记住设备 MAC（下次免扫描直连）
+                // 连接成功 → 记住设备 MAC 与型号名（下次免扫描直连 + MAC 直连时显示型号）
                 if (ble.connectionState == BleConnectionState.CONNECTED) {
                     bleManager.connectedAddress?.let { addr ->
                         scope.launch { repo.saveDeviceAddress(addr) }
                     }
+                    bleManager.connectedName?.let { name ->
+                        if (name.isNotBlank()) {
+                            scope.launch { repo.saveDeviceName(name) }
+                        }
+                    }
                 }
+            }
+        }
+        // 设备名解析成功（含直连后扫描补名）→ 持久化，供下次 MAC 直连显示型号
+        bleManager.onNameResolved = { name ->
+            if (name.isNotBlank()) {
+                scope.launch { repo.saveDeviceName(name) }
             }
         }
         startControlLoop()
         startHeartbeatLoop()
-        // 启动自动恢复连接：有记住的设备就按 MAC 直连（免扫描）
+        // 启动自动恢复连接：有记住的设备就按 MAC 直连（免扫描），并带上型号名显示
         scope.launch {
             val addr = repo.deviceAddressFlow.first()
             if (addr != null) {
-                bleManager.connectToDevice(addr)
+                val name = repo.deviceNameFlow.first()
+                bleManager.connectToDevice(addr, name)
             }
         }
     }
