@@ -25,7 +25,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /** 连接超时：CONNECTING 持续超过该时长仍未成功则清理并重试（防一直卡\"连接中\"） */
 private const val CONNECT_TIMEOUT_MS = 10_000L
-
+/** 直连后补名扫描的最大时长（拿广播名用） */
+private const val NAME_FETCH_SCAN_TIMEOUT_MS = 5_000L
 class BleManager(context: Context) {
 
     private val appContext = context.applicationContext
@@ -44,6 +45,10 @@ class BleManager(context: Context) {
     private var lastDevice: BluetoothDevice? = null
     /** 最近一次成功连接（onServicesDiscovered 成功）的设备 MAC */
     private var lastConnectedAddress: String? = null
+    /** 最近一次拿到的非空设备名（MAC 直连时系统读不到名字，用它显示） */
+    private var knownName: String? = null
+    /** 设备名解析成功回调（供上层持久化；直连后扫描补名也会触发） */
+    var onNameResolved: ((String) -> Unit)? = null
     /** 指数退避尝试次数（成功连接后复位为 0） */
     private var reconnectAttempts = 0
     /** 用户主动断开标志：主动断开不自动重连 */
@@ -67,6 +72,9 @@ class BleManager(context: Context) {
 
     /** 上次成功连接的设备 MAC（供上层持久化，用于下次免扫描直连） */
     val connectedAddress: String? get() = lastConnectedAddress
+
+    /** 最近一次拿到的非空设备名（供上层持久化，MAC 直连时显示用） */
+    val connectedName: String? get() = knownName
 
     private var autoReconnecting: Boolean = false
         set(value) {
@@ -135,11 +143,18 @@ class BleManager(context: Context) {
             mainHandler.removeCallbacks(autoReconnectRunnable)
             mainHandler.removeCallbacks(connectTimeoutRunnable)
 
-            // 刷新设备名：连接成功后系统已读取远端 GAP 名字，避免直连时只显示 MAC
+            // 刷新设备名：优先用系统读到的远端名，读不到用缓存名，都没有才兜底 MAC
             val remoteName = gatt.device.name
+            if (!remoteName.isNullOrBlank()) {
+                knownName = remoteName
+                onNameResolved?.invoke(remoteName)
+            } else {
+                // MAC 直连时系统可能没缓存广播名 → 主动扫描一次补名（拿广播里的 Flydigi B6X）
+                fetchNameViaScan(gatt.device.address)
+            }
             _uiState.value = _uiState.value.copy(
                 connectionState = BleConnectionState.CONNECTED,
-                deviceName = if (remoteName.isNullOrBlank()) _uiState.value.deviceName else remoteName,
+                deviceName = knownName ?: _uiState.value.deviceName,
             )
             // 请求状态推送
             sendCommand(WaspWingProtocol.openReadNotification())
@@ -183,6 +198,39 @@ class BleManager(context: Context) {
         bluetoothAdapter?.bluetoothLeScanner?.stopScan(scanCallback)
     }
 
+    /** 直连拿不到设备名时，主动扫描一次（按 MAC 过滤）补上广播名，最多 5s */
+    private fun fetchNameViaScan(address: String) {
+        val adapter = bluetoothAdapter ?: return
+        if (!adapter.isEnabled) return
+        val nameScanCallback = object : ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: ScanResult) {
+                if (result.device.address.equals(address, ignoreCase = true)) {
+                    val n = result.device.name
+                    if (!n.isNullOrBlank()) {
+                        knownName = n
+                        onNameResolved?.invoke(n)
+                        _uiState.value = _uiState.value.copy(deviceName = n)
+                        adapter.bluetoothLeScanner?.stopScan(this)
+                    }
+                }
+            }
+
+            override fun onScanFailed(errorCode: Int) {
+                adapter.bluetoothLeScanner?.stopScan(this)
+            }
+        }
+        adapter.bluetoothLeScanner?.startScan(
+            listOf(ScanFilter.Builder().setDeviceAddress(address).build()),
+            ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(),
+            nameScanCallback,
+        )
+        // 兜底停止：最多扫 5s，拿到名字即提前停止
+        mainHandler.postDelayed(
+            { adapter.bluetoothLeScanner?.stopScan(nameScanCallback) },
+            NAME_FETCH_SCAN_TIMEOUT_MS,
+        )
+    }
+
     fun connect(device: BluetoothDevice) {
         // 先清理旧连接：同设备重复 connectGatt 而旧 gatt 未 close，会丢回调卡在"连接中"
         closeGatt()
@@ -192,7 +240,7 @@ class BleManager(context: Context) {
         mainHandler.removeCallbacks(connectTimeoutRunnable)
         _uiState.value = _uiState.value.copy(
             connectionState = BleConnectionState.CONNECTING,
-            deviceName = device.name ?: device.address,
+            deviceName = device.name ?: knownName ?: device.address,
         )
         // 连接超时保护：10s 未成功则清理并走重试
         mainHandler.postDelayed(connectTimeoutRunnable, CONNECT_TIMEOUT_MS)
@@ -203,8 +251,12 @@ class BleManager(context: Context) {
         }
     }
 
-    /** 按 MAC 免扫描直连（用于启动自动恢复连接 / 断连后重连记住的设备） */
-    fun connectToDevice(address: String) {
+    /** 按 MAC 免扫描直连（用于启动自动恢复连接 / 断连后重连记住的设备）
+     *  @param displayName 持久化的设备名；MAC 直连时系统读不到名字，用它显示 */
+    fun connectToDevice(address: String, displayName: String? = null) {
+        if (!displayName.isNullOrBlank()) {
+            knownName = displayName
+        }
         val adapter = bluetoothAdapter ?: return
         val device = try {
             adapter.getRemoteDevice(address)

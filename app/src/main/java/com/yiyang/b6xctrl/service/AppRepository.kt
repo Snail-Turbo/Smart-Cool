@@ -22,6 +22,7 @@ class AppRepository(private val context: Context) {
     private val keyShowStatusPacket = booleanPreferencesKey("show_status_packet")
     private val keyShowRecentCommands = booleanPreferencesKey("show_recent_commands")
     private val keyDeviceAddress = stringPreferencesKey("device_address")
+    private val keyDeviceName = stringPreferencesKey("device_name")
 
     // 每档 3 个 key（阈值/制冷/风速）
     private fun keyTh(i: Int) = floatPreferencesKey("level_${i}_threshold")
@@ -67,5 +68,13 @@ class AppRepository(private val context: Context) {
 
     suspend fun saveDeviceAddress(address: String) {
         context.dataStore.edit { p -> p[keyDeviceAddress] = address }
+    }
+
+    /** 已记住的散热器型号名（首次扫描连接时保存；MAC 直连时系统读不到名字，用它显示） */
+    val deviceNameFlow: Flow<String?> =
+        context.dataStore.data.map { p -> p[keyDeviceName] }
+
+    suspend fun saveDeviceName(name: String) {
+        context.dataStore.edit { p -> p[keyDeviceName] = name }
     }
 }
