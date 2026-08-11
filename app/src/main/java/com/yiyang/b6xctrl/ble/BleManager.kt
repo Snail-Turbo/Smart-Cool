@@ -18,6 +18,7 @@ import android.os.Looper
 import com.yiyang.b6xctrl.protocol.WaspWingProtocol
 import java.util.UUID
 import java.util.concurrent.LinkedBlockingQueue
+import kotlin.math.min
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,6 +35,34 @@ class BleManager(context: Context) {
 
     private var gatt: BluetoothGatt? = null
     private var writeCharacteristic: BluetoothGattCharacteristic? = null
+
+    // ---- 自动重连 / 记住设备 ----
+    /** 最近一次连接的设备（用于断连后自动重连） */
+    private var lastDevice: BluetoothDevice? = null
+    /** 最近一次成功连接（onServicesDiscovered 成功）的设备 MAC */
+    private var lastConnectedAddress: String? = null
+    /** 指数退避尝试次数（成功连接后复位为 0） */
+    private var reconnectAttempts = 0
+    /** 用户主动断开标志：主动断开不自动重连 */
+    private var userInitiatedDisconnect = false
+    private val autoReconnectRunnable = object : Runnable {
+        override fun run() {
+            if (userInitiatedDisconnect) return
+            val dev = lastDevice ?: return
+            connect(dev)
+        }
+    }
+
+    /** 上次成功连接的设备 MAC（供上层持久化，用于下次免扫描直连） */
+    val connectedAddress: String? get() = lastConnectedAddress
+
+    private var autoReconnecting: Boolean = false
+        set(value) {
+            if (field != value) {
+                field = value
+                _uiState.value = _uiState.value.copy(autoReconnecting = value)
+            }
+        }
 
     // 命令队列：串行发送，间隔 35ms
     private val commandQueue = LinkedBlockingQueue<ByteArray>()
@@ -67,6 +96,16 @@ class BleManager(context: Context) {
                     connectionState = BleConnectionState.DISCONNECTED,
                     deviceName = _uiState.value.deviceName,
                 )
+                // 非用户主动断开 → 自动重连（指数退避：3s,6s,12s,24s,30s 封顶）
+                if (!userInitiatedDisconnect && lastDevice != null) {
+                    reconnectAttempts++
+                    val delayMs = min(30_000L, 3_000L * (1L shl min(reconnectAttempts - 1, 3)))
+                    autoReconnecting = true
+                    mainHandler.postDelayed(autoReconnectRunnable, delayMs)
+                } else {
+                    autoReconnecting = false
+                }
+                userInitiatedDisconnect = false
             }
         }
 
@@ -83,6 +122,12 @@ class BleManager(context: Context) {
                 it.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
                 gatt.writeDescriptor(it)
             }
+
+            // 连接成功：记住 MAC（供持久化/下次免扫描直连）、复位自动重连
+            lastConnectedAddress = gatt.device.address
+            reconnectAttempts = 0
+            autoReconnecting = false
+            mainHandler.removeCallbacks(autoReconnectRunnable)
 
             _uiState.value = _uiState.value.copy(connectionState = BleConnectionState.CONNECTED)
             // 请求状态推送
@@ -110,6 +155,11 @@ class BleManager(context: Context) {
     fun startScan() {
         val adapter = bluetoothAdapter ?: return
         if (!adapter.isEnabled) return
+        // 用户主动发起连接：取消自动重连、复位重连状态
+        userInitiatedDisconnect = false
+        autoReconnecting = false
+        mainHandler.removeCallbacks(autoReconnectRunnable)
+        reconnectAttempts = 0
         val filters = listOf(ScanFilter.Builder().build())
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
@@ -123,6 +173,9 @@ class BleManager(context: Context) {
     }
 
     fun connect(device: BluetoothDevice) {
+        lastDevice = device
+        userInitiatedDisconnect = false
+        mainHandler.removeCallbacks(autoReconnectRunnable)
         _uiState.value = _uiState.value.copy(
             connectionState = BleConnectionState.CONNECTING,
             deviceName = device.name ?: device.address,
@@ -134,7 +187,23 @@ class BleManager(context: Context) {
         }
     }
 
+    /** 按 MAC 免扫描直连（用于启动自动恢复连接 / 断连后重连记住的设备） */
+    fun connectToDevice(address: String) {
+        val adapter = bluetoothAdapter ?: return
+        val device = try {
+            adapter.getRemoteDevice(address)
+        } catch (_: Exception) {
+            return
+        }
+        connect(device)
+    }
+
     fun disconnect() {
+        // 用户主动断开：不自动重连
+        userInitiatedDisconnect = true
+        autoReconnecting = false
+        mainHandler.removeCallbacks(autoReconnectRunnable)
+        reconnectAttempts = 0
         gatt?.disconnect()
     }
 
