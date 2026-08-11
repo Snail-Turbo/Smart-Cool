@@ -31,6 +31,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -50,8 +51,10 @@ class ControlService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private lateinit var bleManager: BleManager
     private lateinit var tempReader: TempReader
+    private val repo = AppRepository(this)
     private val controller = ThermalController(ControlConfig())
     private var controlJob: Job? = null
+    private var heartbeatJob: Job? = null
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -74,9 +77,23 @@ class ControlService : Service() {
         scope.launch {
             bleManager.uiState.collect { ble ->
                 _uiState.value = _uiState.value.copy(ble = ble)
+                // 连接成功 → 记住设备 MAC（下次免扫描直连）
+                if (ble.connectionState == BleConnectionState.CONNECTED) {
+                    bleManager.connectedAddress?.let { addr ->
+                        scope.launch { repo.saveDeviceAddress(addr) }
+                    }
+                }
             }
         }
         startControlLoop()
+        startHeartbeatLoop()
+        // 启动自动恢复连接：有记住的设备就按 MAC 直连（免扫描）
+        scope.launch {
+            val addr = repo.deviceAddressFlow.first()
+            if (addr != null) {
+                bleManager.connectToDevice(addr)
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -87,6 +104,7 @@ class ControlService : Service() {
 
     override fun onDestroy() {
         controlJob?.cancel()
+        heartbeatJob?.cancel()
         scope.cancel()
         super.onDestroy()
     }
@@ -110,14 +128,25 @@ class ControlService : Service() {
                         val cmds = controller.onTemperature(t)
                         if (cmds.isNotEmpty()) bleManager.sendCommands(cmds)
                     }
-                    // 心跳：维持状态推送
-                    bleManager.sendCommand(WaspWingProtocol.openReadNotification())
                 }
                 _uiState.value = _uiState.value.copy(
                     thermalState = controller.state,
                     currentLevelIndex = controller.currentLevelIndex,
                 )
                 delay(cfg.sampleIntervalMs)
+            }
+        }
+    }
+
+    /** 独立心跳：每 5s 发一次 0x13 确保设备持续推送状态包（手动/自动模式都发，避免链路静默超时） */
+    private fun startHeartbeatLoop() {
+        heartbeatJob?.cancel()
+        heartbeatJob = scope.launch {
+            while (isActive) {
+                delay(HEARTBEAT_INTERVAL_MS)
+                if (_uiState.value.ble.connectionState == BleConnectionState.CONNECTED) {
+                    bleManager.sendCommand(WaspWingProtocol.openReadNotification())
+                }
             }
         }
     }
@@ -208,6 +237,7 @@ class ControlService : Service() {
     companion object {
         private const val CHANNEL_ID = "b6x_ctrl"
         private const val NOTIFICATION_ID = 1
+        private const val HEARTBEAT_INTERVAL_MS = 5_000L
 
         fun start(context: Context) {
             val intent = Intent(context, ControlService::class.java)

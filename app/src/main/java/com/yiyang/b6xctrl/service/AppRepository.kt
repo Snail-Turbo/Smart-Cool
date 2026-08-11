@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.yiyang.b6xctrl.control.ControlConfig
 import com.yiyang.b6xctrl.control.TempLevel
@@ -20,6 +21,7 @@ class AppRepository(private val context: Context) {
     private val keyTempSource = intPreferencesKey("temp_source")
     private val keyShowStatusPacket = booleanPreferencesKey("show_status_packet")
     private val keyShowRecentCommands = booleanPreferencesKey("show_recent_commands")
+    private val keyDeviceAddress = stringPreferencesKey("device_address")
 
     // 每档 3 个 key（阈值/制冷/风速）
     private fun keyTh(i: Int) = floatPreferencesKey("level_${i}_threshold")
@@ -57,5 +59,13 @@ class AppRepository(private val context: Context) {
             p[keyShowStatusPacket] = cfg.showStatusPacket
             p[keyShowRecentCommands] = cfg.showRecentCommands
         }
+    }
+
+    /** 已记住的散热器 MAC（连接成功后保存，用于免扫描直连/自动重连） */
+    val deviceAddressFlow: Flow<String?> =
+        context.dataStore.data.map { p -> p[keyDeviceAddress] }
+
+    suspend fun saveDeviceAddress(address: String) {
+        context.dataStore.edit { p -> p[keyDeviceAddress] = address }
     }
 }

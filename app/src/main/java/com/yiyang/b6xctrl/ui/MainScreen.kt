@@ -76,18 +76,24 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 Text("连接状态", style = MaterialTheme.typography.labelMedium)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        when (ui.ble.connectionState) {
-                            BleConnectionState.DISCONNECTED -> "未连接"
-                            BleConnectionState.SCANNING -> "扫描中…"
-                            BleConnectionState.CONNECTING -> "连接中…"
-                            BleConnectionState.CONNECTED -> "已连接 ${ui.ble.deviceName ?: ""}"
+                        when {
+                            ui.ble.connectionState == BleConnectionState.DISCONNECTED &&
+                                ui.ble.autoReconnecting -> "已断连，自动重连中…"
+                            ui.ble.connectionState == BleConnectionState.DISCONNECTED -> "未连接"
+                            ui.ble.connectionState == BleConnectionState.SCANNING -> "扫描中…"
+                            ui.ble.connectionState == BleConnectionState.CONNECTING -> "连接中…"
+                            else -> "已连接 ${ui.ble.deviceName ?: ""}"
                         },
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f),
                     )
-                    if (ui.ble.connectionState == BleConnectionState.DISCONNECTED) {
+                    if (ui.ble.connectionState == BleConnectionState.DISCONNECTED &&
+                        !ui.ble.autoReconnecting
+                    ) {
                         Button(onClick = { viewModel.connect() }) { Text("连接") }
+                    } else if (ui.ble.connectionState == BleConnectionState.DISCONNECTED) {
+                        OutlinedButton(onClick = { viewModel.connect() }) { Text("立即重试") }
                     } else {
                         OutlinedButton(onClick = { viewModel.disconnect() }) { Text("断开") }
                     }

@@ -14,4 +14,6 @@ data class BleUiState(
     val lastSentCommands: List<String> = emptyList(),
     /** 是否有命令因未连接/写特征缺失而发送失败 */
     val hasSendError: Boolean = false,
+    /** 是否正在自动重连（非用户主动断开后，自动恢复连接中） */
+    val autoReconnecting: Boolean = false,
 )
