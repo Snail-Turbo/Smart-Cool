@@ -11,7 +11,10 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -24,7 +27,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /** 连接超时：CONNECTING 持续超过该时长仍未成功则清理并重试（防一直卡\"连接中\"） */
-private const val CONNECT_TIMEOUT_MS = 10_000L
+private const val CONNECT_TIMEOUT_MS = 5_000L
+/** 自动重连指数退避：起始延迟 */
+private const val RECONNECT_BASE_DELAY_MS = 3_000L
+/** 自动重连指数退避：最大延迟（封顶） */
+private const val RECONNECT_MAX_DELAY_MS = 30_000L
+/** 蓝牙重新开启后，等协议栈就绪再重连的延迟 */
+private const val BT_ON_RECONNECT_DELAY_MS = 1_000L
 /** 直连后补名扫描的最大时长（拿广播名用） */
 private const val NAME_FETCH_SCAN_TIMEOUT_MS = 5_000L
 class BleManager(context: Context) {
@@ -33,6 +42,28 @@ class BleManager(context: Context) {
     private val bluetoothManager = appContext.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager.adapter
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** 监听蓝牙开关：重新开启时立即重连（不等退避定时），解决"断蓝牙再开要干等超时" */
+    private val bluetoothStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == BluetoothAdapter.ACTION_STATE_CHANGED) {
+                val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+                if (state == BluetoothAdapter.STATE_ON) {
+                    onBluetoothEnabled()
+                }
+            }
+        }
+    }
+
+    init {
+        val filter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            appContext.registerReceiver(bluetoothStateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            appContext.registerReceiver(bluetoothStateReceiver, filter)
+        }
+    }
 
     private val _uiState = MutableStateFlow(BleUiState())
     val uiState: StateFlow<BleUiState> = _uiState.asStateFlow()
@@ -142,6 +173,7 @@ class BleManager(context: Context) {
             autoReconnecting = false
             mainHandler.removeCallbacks(autoReconnectRunnable)
             mainHandler.removeCallbacks(connectTimeoutRunnable)
+            _uiState.value = _uiState.value.copy(reconnectDelayMs = null)
 
             // 刷新设备名：优先用系统读到的远端名，读不到用缓存名，都没有才兜底 MAC
             val remoteName = gatt.device.name
@@ -185,7 +217,9 @@ class BleManager(context: Context) {
         userInitiatedDisconnect = false
         autoReconnecting = false
         mainHandler.removeCallbacks(autoReconnectRunnable)
+        mainHandler.removeCallbacks(connectTimeoutRunnable)
         reconnectAttempts = 0
+        _uiState.value = _uiState.value.copy(reconnectDelayMs = null)
         val filters = listOf(ScanFilter.Builder().build())
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
@@ -235,6 +269,11 @@ class BleManager(context: Context) {
         // 先清理旧连接：同设备重复 connectGatt 而旧 gatt 未 close，会丢回调卡在"连接中"
         closeGatt()
         lastDevice = device
+        // 蓝牙未开启：不进入"连接中"干等超时，直接安排退避重试；蓝牙重开时接收器会立即重连
+        if (bluetoothAdapter?.isEnabled != true) {
+            handleDisconnected()
+            return
+        }
         userInitiatedDisconnect = false
         mainHandler.removeCallbacks(autoReconnectRunnable)
         mainHandler.removeCallbacks(connectTimeoutRunnable)
@@ -242,7 +281,7 @@ class BleManager(context: Context) {
             connectionState = BleConnectionState.CONNECTING,
             deviceName = device.name ?: knownName ?: device.address,
         )
-        // 连接超时保护：10s 未成功则清理并走重试
+        // 连接超时保护：5s 未成功则清理并走重试（正常 BLE 连接 1~3s 内完成）
         mainHandler.postDelayed(connectTimeoutRunnable, CONNECT_TIMEOUT_MS)
         gatt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             device.connectGatt(appContext, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
@@ -273,6 +312,7 @@ class BleManager(context: Context) {
         mainHandler.removeCallbacks(autoReconnectRunnable)
         mainHandler.removeCallbacks(connectTimeoutRunnable)
         reconnectAttempts = 0
+        _uiState.value = _uiState.value.copy(reconnectDelayMs = null)
         gatt?.disconnect()
     }
 
@@ -334,6 +374,17 @@ class BleManager(context: Context) {
         writeCharacteristic = null
     }
 
+    /** 蓝牙重新开启：取消挂起的退避重连，稍等协议栈就绪后立即重连上次设备 */
+    private fun onBluetoothEnabled() {
+        if (userInitiatedDisconnect || lastDevice == null) return
+        mainHandler.removeCallbacks(autoReconnectRunnable)
+        mainHandler.removeCallbacks(connectTimeoutRunnable)
+        reconnectAttempts = 0
+        autoReconnecting = true
+        _uiState.value = _uiState.value.copy(reconnectDelayMs = BT_ON_RECONNECT_DELAY_MS)
+        mainHandler.postDelayed(autoReconnectRunnable, BT_ON_RECONNECT_DELAY_MS)
+    }
+
     /** 断连/失败统一处理：清理连接、复位状态、按指数退避安排自动重连 */
     private fun handleDisconnected() {
         closeGatt()
@@ -344,11 +395,17 @@ class BleManager(context: Context) {
         )
         if (!userInitiatedDisconnect && lastDevice != null) {
             reconnectAttempts++
-            val delayMs = min(30_000L, 3_000L * (1L shl min(reconnectAttempts - 1, 3)))
+            // 指数退避：3s→6s→12s→24s→30s 封顶（用命名常量，避免 magic number）
+            val delayMs = min(
+                RECONNECT_MAX_DELAY_MS,
+                RECONNECT_BASE_DELAY_MS * (1L shl min(reconnectAttempts - 1, 3)),
+            )
             autoReconnecting = true
+            _uiState.value = _uiState.value.copy(reconnectDelayMs = delayMs)
             mainHandler.postDelayed(autoReconnectRunnable, delayMs)
         } else {
             autoReconnecting = false
+            _uiState.value = _uiState.value.copy(reconnectDelayMs = null)
         }
         userInitiatedDisconnect = false
     }

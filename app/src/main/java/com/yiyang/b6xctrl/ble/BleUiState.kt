@@ -16,4 +16,6 @@ data class BleUiState(
     val hasSendError: Boolean = false,
     /** 是否正在自动重连（非用户主动断开后，自动恢复连接中） */
     val autoReconnecting: Boolean = false,
+    /** 自动重连前的等待时长（ms，指数退避），用于 UI 倒计时显示 */
+    val reconnectDelayMs: Long? = null,
 )
