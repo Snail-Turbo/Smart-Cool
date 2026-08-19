@@ -102,9 +102,9 @@ class TempReader(context: Context) {
         readFile(File(zonePath, "type").absolutePath)?.trim()
 
     /** 电池温度（0.1°C → °C）。
-     *  优先读实时 sysfs（/sys/class/power_supply/battery/temp 或 bms/temp，十分之一度，
-     *  随充电/负载实时变化），失败再 fallback 到 sticky 广播 ACTION_BATTERY_CHANGED
-     *  （系统按阈值低频推送，会滞后）。范围过滤。 */
+     *  候选链：power_supply 实时 sysfs → thermal_zone 电池类 zone → sticky 广播。
+     *  power_supply 在部分机型对普通 app 权限收紧（root 才可读），此时 thermal_zone
+     *  里的电池类 zone（世界可读，毫°C）可兜住实时性；广播是最后兜底（系统节流会滞后）。 */
     private fun readBatteryTempC(): Float? {
         // 1) 优先：实时 sysfs（多个候选路径）
         val sysfsPaths = listOf(
@@ -120,13 +120,29 @@ class TempReader(context: Context) {
                 if (c in BATT_MIN_C..BATT_MAX_C) return c
             }
         }
-        // 2) fallback：sticky 广播（0.1°C）
+        // 2) thermal_zone 电池类 zone（毫°C，与 CPU 温度同路径，普通 app 可读）
+        readBatteryZoneTempC()?.let { return it }
+        // 3) fallback：sticky 广播（0.1°C）
         val intent = appContext.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
             ?: return null
         val deci = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1)
         if (deci < 0) return null
         val c = deci / 10f
         return if (c in BATT_MIN_C..BATT_MAX_C) c else null
+    }
+
+    /** 从 thermal_zone 里找 type 为 battery/bat 的 zone 读实时温度（毫°C → °C）。 */
+    private fun readBatteryZoneTempC(): Float? {
+        val zones = thermalDir.listFiles { f -> f.name.startsWith("thermal_zone") }
+            ?: return null
+        for (zone in zones) {
+            val type = readZoneType(zone.absolutePath)?.lowercase(Locale.ROOT) ?: continue
+            if (!type.contains("battery") && !type.startsWith("bat")) continue
+            val temp = readZoneTempC(zone.absolutePath) ?: continue
+            if (temp !in BATT_MIN_C..BATT_MAX_C) continue // 范围过滤
+            return temp
+        }
+        return null
     }
 
     private fun readFile(path: String): String? {
