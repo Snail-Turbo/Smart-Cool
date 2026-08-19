@@ -77,6 +77,7 @@ class ControlService : Service() {
         scope.launch {
             bleManager.uiState.collect { ble ->
                 _uiState.value = _uiState.value.copy(ble = ble)
+                updateNotification()
                 // 连接成功 → 记住设备 MAC 与型号名（下次免扫描直连 + MAC 直连时显示型号）
                 if (ble.connectionState == BleConnectionState.CONNECTED) {
                     bleManager.connectedAddress?.let { addr ->
@@ -147,6 +148,7 @@ class ControlService : Service() {
                     thermalState = controller.state,
                     currentLevelIndex = controller.currentLevelIndex,
                 )
+                updateNotification()
                 delay(cfg.sampleIntervalMs)
             }
         }
@@ -182,6 +184,7 @@ class ControlService : Service() {
                 if (cmds.isNotEmpty()) bleManager.sendCommands(cmds)
             }
         }
+        updateNotification()
     }
 
     fun setManualWindLevel(level: Int) {
@@ -215,6 +218,7 @@ class ControlService : Service() {
             val cmds = controller.onTemperature(t)
             if (cmds.isNotEmpty()) bleManager.sendCommands(cmds)
         }
+        updateNotification()
     }
 
     /** 按配置的温控参考源从温度快照中选取控制温度 */
@@ -247,13 +251,68 @@ class ControlService : Service() {
         }
     }
 
-    private fun buildNotification(): Notification =
-        NotificationCompat.Builder(this, CHANNEL_ID)
+    /** 通知内容键：内容变化（状态/挡位/温度 ≥0.5°C）才重发，避免 2s 轮询频繁闪通知 */
+    private var lastNotifiedKey: String? = null
+
+    private fun levelName(i: Int): String = when (i) {
+        0 -> "A挡"
+        1 -> "B挡"
+        2 -> "C挡"
+        3 -> "C'挡"
+        4 -> "D挡"
+        else -> "挡$i"
+    }
+
+    private fun fmtTemp(v: Float?): String =
+        if (v == null || v.isNaN() || v.isInfinite()) "--" else "%.1f".format(v)
+
+    private fun buildNotification(): Notification {
+        val s = _uiState.value
+        val ble = s.ble
+        val connected = ble.connectionState == BleConnectionState.CONNECTED
+        val status = if (connected) {
+            val lvl = s.config.levels.getOrNull(s.currentLevelIndex)
+            buildList {
+                add("${levelName(s.currentLevelIndex)} · 风${lvl?.wind} · 制冷${lvl?.cold}")
+                val ds = ble.deviceStatus
+                add("冷面 ${fmtTemp(ds?.coldTempC)}°C · 热面 ${fmtTemp(ds?.hotTempC)}°C")
+                add(
+                    "参考(${s.config.tempSource.label}) ${fmtTemp(s.systemTempC)}°C · 已连接 · " +
+                        "重连${if (s.config.autoReconnect) "开" else "关"}",
+                )
+            }.joinToString("\n")
+        } else if (ble.autoReconnecting) {
+            "重连中 ${(ble.reconnectDelayMs ?: 0L) / 1000L}s · 参考 ${fmtTemp(s.systemTempC)}°C"
+        } else {
+            "未连接 · 参考 ${fmtTemp(s.systemTempC)}°C · 重连${if (s.config.autoReconnect) "开" else "关"}"
+        }
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("B6X 温控运行中")
-            .setContentText("正在按系统温度调度散热器")
+            .setContentText(status)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(status))
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setOngoing(true)
             .build()
+    }
+
+    /** 刷新常驻通知（内容无变化则不动作，见 lastNotifiedKey） */
+    private fun updateNotification() {
+        val s = _uiState.value
+        val ble = s.ble
+        val key = listOf(
+            ble.connectionState.name,
+            ble.autoReconnecting,
+            s.config.autoReconnect,
+            s.autoMode,
+            s.currentLevelIndex,
+            ble.deviceStatus?.coldTempC?.let { (it / 0.5f).toInt() },
+            ble.deviceStatus?.hotTempC?.let { (it / 0.5f).toInt() },
+            s.systemTempC?.let { (it / 0.5f).toInt() },
+        ).joinToString("|")
+        if (key == lastNotifiedKey) return
+        lastNotifiedKey = key
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification())
+    }
 
     companion object {
         private const val CHANNEL_ID = "b6x_ctrl"

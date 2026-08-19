@@ -28,6 +28,14 @@ class MainActivity : ComponentActivity() {
         arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
+    /** Android 13+ 通知权限（常驻温控通知需要，不请求则通知不显示） */
+    private val notificationPermission =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            arrayOf(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            emptyArray()
+        }
+
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { /* 结果在 UI 连接时二次校验，这里仅触发一次请求 */ }
@@ -48,9 +56,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** 首次启动请求 BLE 权限（不阻塞 UI，拒绝后连接时会提示） */
+    /** 首次启动请求 BLE + 通知权限（不阻塞 UI，拒绝后连接时会提示） */
     private fun requestBlePermissionsIfNeeded() {
-        val missing = blePermissions.filter {
+        val missing = (blePermissions + notificationPermission).filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
         if (missing.isNotEmpty()) {
