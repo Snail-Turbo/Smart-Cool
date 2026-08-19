@@ -10,6 +10,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.Binder
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.yiyang.b6xctrl.R
 import com.yiyang.b6xctrl.ble.BleConnectionState
@@ -75,11 +76,14 @@ class ControlService : Service() {
             pendingAutoReconnectToggle = false
             toggleAutoReconnect()
         }
+        // 前台服务必须先 startForeground（startForegroundService 后 5s 内未调即抛
+        // ForegroundServiceDidNotStartInTimeException 杀进程）。任何可能阻塞的初始化
+        // （su 探测等）都放后面，避免超时崩溃。
+        createNotificationChannel()
+        startForegroundCompat()
         bleManager = BleManager(this)
         tempReader = TempReader(this)
         _uiState.value = _uiState.value.copy(rootAvailable = tempReader.isRoot)
-        createNotificationChannel()
-        startForegroundCompat()
         // 聚合 BLE 状态
         scope.launch {
             bleManager.uiState.collect { ble ->
@@ -257,13 +261,18 @@ class ControlService : Service() {
 
     private fun startForegroundCompat() {
         val notification = buildNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID, notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    NOTIFICATION_ID, notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            // 系统限制等极端情况：前台服务启动失败不应拖垮整个进程
+            Log.w(TAG, "startForeground 失败", e)
         }
     }
 
@@ -331,6 +340,8 @@ class ControlService : Service() {
     }
 
     companion object {
+        private const val TAG = "ControlService"
+
         /** 供磁贴等外部组件访问的服务实例（onCreate/onDestroy 维护） */
         @Volatile
         var instance: ControlService? = null
