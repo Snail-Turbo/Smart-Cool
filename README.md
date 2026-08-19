@@ -24,6 +24,9 @@
 - ✅ **手动模式**：风速/制冷双滑杆，0~100%
 - ✅ **设备掉电保持**：固件记住最后档位，断电/重启无需重设
 - ✅ **设置持久化**：DataStore 保存档位曲线、温度源、采样间隔、调试开关
+- ✅ **自动重连开关**：设置页 / 控制中心磁贴一键切换；关闭后断开不再自动重连，手动连接始终可用；开启后立即尝试连接
+- ✅ **配置导出/导入**：JSON 分享导出 / 文件导入（不含设备 MAC）；保存或导入后立即按当前温度重发挡位命令，配置热更新实时生效
+- ✅ **实时状态通知**：常驻通知两行显示挡位 / 风速(设备实际) / 制冷 / 连接与自动重连状态 + 冷面 / 热面 / 参考温度（跟随温控参考源）
 
 ## 界面预览
 
@@ -39,6 +42,7 @@ UI (Compose) ⇄ ViewModel ⇄ ControlService(前台服务) ⇄ BleManager ⇄ B
 ```
 
 - **温度**：读 `/sys/class/thermal/thermal_zone*/{type,temp}`，按 type 匹配 cpu/gpu/ddr/cam，跳过 `trip/crit/max/limit` 阈值传感器，范围过滤后取各类最高
+- **电池温度三级候选链**：`power_supply` 实时 sysfs → `thermal_zone` 电池类 zone（世界可读）→ `ACTION_BATTERY_CHANGED` 广播（系统节流，滞后，最后兜底）。部分机型 `power_supply` 对普通 app 权限收紧，第二级保证非 root 下仍实时
 - **协议**：B6X 手动命令 `0x23 <制冷档> <风速/100> <风速%100>`，4 字节；写间隔 ≥35ms，NO_RESPONSE
 - **曲线**：温度达到某档阈值即切档，档位变化才下发命令（避免重复刷）
 
@@ -55,7 +59,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 - **定位**（旧版 Android 扫描 BLE 需要，兼容保留）
 - **通知**（前台服务常驻通知）
 
-> 温度读取无需 root（`/sys/class/thermal` world-readable）；检测到 root 时自动增强读取。
+> 温度读取无需 root（`/sys/class/thermal` world-readable）；root 只作为权限收紧文件的读取兜底，非 root 下自动降级、功能完整。详见 [docs/feature-notes.md](docs/feature-notes.md)。
 
 ## 使用
 
