@@ -1,9 +1,11 @@
 package com.yiyang.b6xctrl.tile
 
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.Icon
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
+import com.yiyang.b6xctrl.MainActivity
 import com.yiyang.b6xctrl.R
 import com.yiyang.b6xctrl.control.ControlConfig
 import com.yiyang.b6xctrl.service.ControlService
@@ -32,15 +34,19 @@ class B6xTileService : TileService() {
     }
 
     override fun onClick() {
-        // 服务未启动（如刚开机磁贴被点）则先启动，由服务 onCreate 补执行一次切换
         val svc = ControlService.instance
         if (svc != null) {
+            // 服务在运行：单击切换自动重连
             svc.toggleAutoReconnect()
-        } else {
-            ControlService.pendingAutoReconnectToggle = true
-            ControlService.start(this)
+            refreshState()
+            return
         }
-        refreshState()
+        // 服务未运行：不能在此后台启动前台服务（Android 12+ 抛
+        // ForegroundServiceStartNotAllowedException 杀进程）。改为打开 app——
+        // MainViewModel 初始化即拉起温控服务（前台启动，合法）
+        startActivityAndCollapse(
+            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 
     /** 按当前开关状态刷新磁贴外观 */

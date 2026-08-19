@@ -71,11 +71,6 @@ class ControlService : Service() {
     override fun onCreate() {
         super.onCreate()
         instance = this
-        // 磁贴可能在服务未运行时点击：启动后补执行一次开关切换
-        if (pendingAutoReconnectToggle) {
-            pendingAutoReconnectToggle = false
-            toggleAutoReconnect()
-        }
         // 前台服务必须先 startForeground（startForegroundService 后 5s 内未调即抛
         // ForegroundServiceDidNotStartInTimeException 杀进程）。任何可能阻塞的初始化
         // （su 探测等）都放后面，避免超时崩溃。
@@ -365,10 +360,6 @@ class ControlService : Service() {
         @Volatile
         var instance: ControlService? = null
             private set
-
-        /** 磁贴在服务未启动时点击的待补切换标记（服务启动后执行） */
-        @Volatile
-        var pendingAutoReconnectToggle = false
 
         private const val CHANNEL_ID = "b6x_ctrl"
         private const val NOTIFICATION_ID = 1
