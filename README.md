@@ -59,7 +59,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 - **定位**（旧版 Android 扫描 BLE 需要，兼容保留）
 - **通知**（前台服务常驻通知）
 
-> 温度读取无需 root（`/sys/class/thermal` world-readable）；root 只作为权限收紧文件的读取兜底，非 root 下自动降级、功能完整。详见 [docs/feature-notes.md](docs/feature-notes.md)。
+> 温度读取无需 root（`/sys/class/thermal` world-readable）；root 只作为权限收紧文件的读取兜底，非 root 下自动降级、功能完整。
 
 ## 使用
 
