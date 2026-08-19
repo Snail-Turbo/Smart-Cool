@@ -229,6 +229,7 @@ class ControlService : Service() {
     }
 
     fun setConfig(config: ControlConfig) {
+        val wasAutoReconnect = _uiState.value.config.autoReconnect
         _uiState.value = _uiState.value.copy(config = config)
         bleManager.setAutoReconnect(config.autoReconnect)
         controller.updateConfig(config)
@@ -239,6 +240,18 @@ class ControlService : Service() {
             if (cmds.isNotEmpty()) bleManager.sendCommands(cmds)
         }
         updateNotification()
+        // 重连开关从关→开且未连接：立即尝试连接（不等断连事件）。
+        // 用记住的 MAC 直连；从未成功连过（无 MAC）则等用户手动扫描连接
+        if (config.autoReconnect && !wasAutoReconnect &&
+            _uiState.value.ble.connectionState != BleConnectionState.CONNECTED
+        ) {
+            scope.launch {
+                val addr = repo.deviceAddressFlow.first()
+                if (addr != null) {
+                    bleManager.connectToDevice(addr, repo.deviceNameFlow.first())
+                }
+            }
+        }
     }
 
     /** 按配置的温控参考源从温度快照中选取控制温度 */
@@ -295,21 +308,18 @@ class ControlService : Service() {
         val s = _uiState.value
         val ble = s.ble
         val connected = ble.connectionState == BleConnectionState.CONNECTED
+        // 通知最多两行（第三行在通知栏会被折叠）：已连接=挡位/状态 + 温度；未连接=状态 + 温度
         val status = if (connected) {
             val lvl = s.config.levels.getOrNull(s.currentLevelIndex)
-            buildList {
-                add("${levelName(s.currentLevelIndex)} · 风${lvl?.wind} · 制冷${lvl?.cold}")
-                val ds = ble.deviceStatus
-                add("冷面 ${fmtTemp(ds?.coldTempC)}°C · 热面 ${fmtTemp(ds?.hotTempC)}°C")
-                add(
-                    "参考(${s.config.tempSource.label}) ${fmtTemp(s.systemTempC)}°C · 已连接 · " +
-                        "重连${if (s.config.autoReconnect) "开" else "关"}",
-                )
-            }.joinToString("\n")
+            val ds = ble.deviceStatus
+            "${levelName(s.currentLevelIndex)} · 风${lvl?.wind} · 制冷${lvl?.cold} · 已连接\n" +
+                "冷面 ${fmtTemp(ds?.coldTempC)}°C · 热面 ${fmtTemp(ds?.hotTempC)}°C · 参考 ${fmtTemp(s.systemTempC)}°C"
         } else if (ble.autoReconnecting) {
-            "重连中 ${(ble.reconnectDelayMs ?: 0L) / 1000L}s · 参考 ${fmtTemp(s.systemTempC)}°C"
+            "重连中 ${(ble.reconnectDelayMs ?: 0L) / 1000L}s\n" +
+                "参考 ${fmtTemp(s.systemTempC)}°C"
         } else {
-            "未连接 · 参考 ${fmtTemp(s.systemTempC)}°C · 重连${if (s.config.autoReconnect) "开" else "关"}"
+            "未连接 · 自动重连${if (s.config.autoReconnect) "开" else "关"}\n" +
+                "参考 ${fmtTemp(s.systemTempC)}°C"
         }
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("B6X 温控运行中")
