@@ -188,8 +188,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                     else -> "设备已停"
                 }
                 Text(
-                    "当前档：$levelName $levelDesc | 设备: $runningText | " +
-                        "root: ${if (ui.rootAvailable) "可用" else "未检测到"}",
+                    "当前档：$levelName $levelDesc | 设备: $runningText" +
+                        if (ui.rootAvailable) " | root: 可用" else "",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 // 温度明细（学习 Scene 温度监视器：BAT/CPU/GPU/DDR/CAM）
