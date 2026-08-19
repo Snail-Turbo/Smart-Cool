@@ -1,0 +1,60 @@
+package com.yiyang.b6xctrl.tile
+
+import android.graphics.Color
+import android.graphics.drawable.Icon
+import android.service.quicksettings.Tile
+import android.service.quicksettings.TileService
+import com.yiyang.b6xctrl.R
+import com.yiyang.b6xctrl.control.ControlConfig
+import com.yiyang.b6xctrl.service.ControlService
+
+/** 控制中心磁贴：单击切换自动重连开关，外观随开关状态变化（开=白/亮，关=灰/暗） */
+class B6xTileService : TileService() {
+
+    companion object {
+        /** 当前正在展示的磁贴实例（onStartListening/onStopListening 维护） */
+        @Volatile
+        private var activeInstance: B6xTileService? = null
+
+        /** 服务状态变化时刷新磁贴；无实例则跳过（下次展示时 onStartListening 会刷新） */
+        fun refreshTiles() {
+            activeInstance?.refreshState()
+        }
+    }
+
+    override fun onStartListening() {
+        activeInstance = this
+        refreshState()
+    }
+
+    override fun onStopListening() {
+        activeInstance = null
+    }
+
+    override fun onClick() {
+        // 服务未启动（如刚开机磁贴被点）则先启动，由服务 onCreate 补执行一次切换
+        val svc = ControlService.instance
+        if (svc != null) {
+            svc.toggleAutoReconnect()
+        } else {
+            ControlService.pendingAutoReconnectToggle = true
+            ControlService.start(this)
+        }
+        refreshState()
+    }
+
+    /** 按当前开关状态刷新磁贴外观 */
+    private fun refreshState() {
+        val tile = qsTile ?: return
+        val on = ControlService.instance?.uiState?.value?.config?.autoReconnect
+            ?: ControlConfig().autoReconnect
+        tile.state = if (on) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+        tile.label = "自动重连"
+        tile.subtitle = if (on) "开" else "关"
+        tile.contentDescription = "自动重连 ${if (on) "开" else "关"}"
+        tile.icon = Icon.createWithResource(this, R.drawable.tile_icon).apply {
+            setTint(if (on) Color.WHITE else Color.GRAY)
+        }
+        tile.updateTile()
+    }
+}

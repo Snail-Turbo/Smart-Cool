@@ -22,6 +22,7 @@ import com.yiyang.b6xctrl.control.ThermalState
 import com.yiyang.b6xctrl.protocol.WaspWingProtocol
 import com.yiyang.b6xctrl.thermal.TempReader
 import com.yiyang.b6xctrl.thermal.TempSnapshot
+import com.yiyang.b6xctrl.tile.B6xTileService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -68,6 +69,12 @@ class ControlService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
+        // 磁贴可能在服务未运行时点击：启动后补执行一次开关切换
+        if (pendingAutoReconnectToggle) {
+            pendingAutoReconnectToggle = false
+            toggleAutoReconnect()
+        }
         bleManager = BleManager(this)
         tempReader = TempReader(this)
         _uiState.value = _uiState.value.copy(rootAvailable = tempReader.isRoot)
@@ -118,6 +125,7 @@ class ControlService : Service() {
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onDestroy() {
+        if (instance === this) instance = null
         controlJob?.cancel()
         heartbeatJob?.cancel()
         scope.cancel()
@@ -206,6 +214,14 @@ class ControlService : Service() {
         val bytes = WaspWingProtocol.parseHexInput(hex) ?: return false
         bleManager.sendCommand(bytes)
         return true
+    }
+
+    /** 磁贴/快捷开关切换自动重连：持久化配置并同步 BleManager */
+    fun toggleAutoReconnect() {
+        val next = _uiState.value.config.copy(autoReconnect = !_uiState.value.config.autoReconnect)
+        setConfig(next)
+        scope.launch { repo.saveConfig(next) }
+        B6xTileService.refreshTiles()
     }
 
     fun setConfig(config: ControlConfig) {
@@ -315,6 +331,15 @@ class ControlService : Service() {
     }
 
     companion object {
+        /** 供磁贴等外部组件访问的服务实例（onCreate/onDestroy 维护） */
+        @Volatile
+        var instance: ControlService? = null
+            private set
+
+        /** 磁贴在服务未启动时点击的待补切换标记（服务启动后执行） */
+        @Volatile
+        var pendingAutoReconnectToggle = false
+
         private const val CHANNEL_ID = "b6x_ctrl"
         private const val NOTIFICATION_ID = 1
         private const val HEARTBEAT_INTERVAL_MS = 5_000L
