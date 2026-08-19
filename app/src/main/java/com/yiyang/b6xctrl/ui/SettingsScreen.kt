@@ -34,13 +34,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.FileProvider
-import java.io.File
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -83,6 +80,21 @@ fun SettingsScreen(
                 } else {
                     Toast.makeText(context, "导入失败：文件格式不正确", Toast.LENGTH_SHORT).show()
                 }
+            }
+        }
+    }
+
+    // 导出：SAF 创建文件（系统保存对话框选位置，app 直接写入）。
+    // 分享式导出（ACTION_SEND）在部分文件管理器保存失败，SAF 不依赖目标 app 处理
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri != null) {
+            viewModel.exportConfig { json ->
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    out.write(json.toByteArray())
+                }
+                Toast.makeText(context, "配置已导出", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -218,26 +230,10 @@ fun SettingsScreen(
             Switch(checked = showRecentCommands, onCheckedChange = { showRecentCommands = it })
         }
 
-        // 配置导出/导入（JSON；导出走文件分享，导入走文件选择器，成功后触发当前挡位重发）
+        // 配置导出/导入（JSON；导出走系统保存对话框，导入走文件选择器，成功后触发当前挡位重发）
         Row {
             OutlinedButton(
-                onClick = {
-                    viewModel.exportConfig { json ->
-                        // 写临时文件走 FileProvider 分享：EXTRA_TEXT 方式在部分文件管理器保存失败
-                        val dir = File(context.cacheDir, "export").apply { mkdirs() }
-                        val file = File(dir, "b6x_config.json")
-                        file.writeText(json)
-                        val uri = FileProvider.getUriForFile(
-                            context, "${context.packageName}.fileprovider", file,
-                        )
-                        val send = Intent(Intent.ACTION_SEND).apply {
-                            type = "application/json"
-                            putExtra(Intent.EXTRA_STREAM, uri)
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        }
-                        context.startActivity(Intent.createChooser(send, "导出配置"))
-                    }
-                },
+                onClick = { exportLauncher.launch("b6x_config.json") },
                 modifier = Modifier.weight(1f),
             ) { Text("导出配置") }
             Spacer(Modifier.width(8.dp))
