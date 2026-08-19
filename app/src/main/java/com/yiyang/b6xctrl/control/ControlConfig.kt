@@ -18,14 +18,15 @@ data class TempLevel(
     val wind: Int,         // 风速控制值（0x23 第三四字节，4000~7500）
 )
 
-/** 5 档温控曲线（PC 风扇式）：A<B<C<C'<D，温度达到阈值升档 */
+/** 5 档温控曲线（PC 风扇式）：A<B<C<C'<D，温度达到阈值升档
+ *  默认值 = 用户实调配置（myconfig/b6x_config.json）：31/33/36/38/40 */
 data class ControlConfig(
     val levels: List<TempLevel> = listOf(
-        TempLevel(30f, 1, 4500),   // A：<30°C 待机档
-        TempLevel(33f, 40, 4600),  // B：≥33°C 平衡档
-        TempLevel(36f, 170, 5804), // C：≥36°C 中档
-        TempLevel(38f, 180, 6000), // C'：≥38°C 中高档（C 与 D 之间）
-        TempLevel(39f, 200, 6000), // D：≥39°C 满档
+        TempLevel(31f, 1, 4000),   // A：31°C 待机档
+        TempLevel(33f, 40, 4500),  // B：≥33°C 平衡档
+        TempLevel(36f, 130, 6500), // C：≥36°C 中档
+        TempLevel(38f, 180, 6800), // C'：≥38°C 中高档（C 与 D 之间）
+        TempLevel(40f, 200, 7200), // D：≥40°C 满档
     ),
     val sampleIntervalMs: Long = 2000,
     val tempSource: TempSource = TempSource.BATTERY,
