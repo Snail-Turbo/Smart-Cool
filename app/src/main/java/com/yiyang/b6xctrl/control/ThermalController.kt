@@ -72,9 +72,11 @@ class ThermalController(config: ControlConfig) {
         const val COLD_RECOMMENDED = 178
     }
 
-    /** 热更新配置（保留当前状态）。 */
+    /** 热更新配置。重置"已初始化"标记：即使温度仍在同一档，下一次决策也按新配置重发命令，
+     *  否则 currentLevelIndex 未变会跳过下发，改风速/制冷/阈值不能实时生效。 */
     fun updateConfig(newConfig: ControlConfig) {
         config = newConfig
+        initialized = false
     }
 
     /** 选择温度所属档位：最后一个阈值 ≤ 温度的档；低于第一档阈值 → 第 0 档 */

@@ -101,6 +101,27 @@ class ThermalControllerTest {
     }
 
     @Test
+    fun updateConfig_sameTemp_resendsCommand() {
+        val c = ThermalController(config)
+        c.onTemperature(41f) // D 档（制冷200 风6000）
+        // 改了 D 档风速后热更新配置：温度仍 41°C 不跨档，也必须重发新命令（保存配置实时生效）
+        val newCfg = ControlConfig(
+            levels = listOf(
+                TempLevel(30f, 1, 4500),
+                TempLevel(33f, 40, 4600),
+                TempLevel(36f, 170, 5804),
+                TempLevel(38f, 180, 6000),
+                TempLevel(39f, 200, 7000), // 6000 → 7000
+            ),
+        )
+        c.updateConfig(newCfg)
+        val cmds = c.onTemperature(41f)
+        // 新 D 档：制冷200 风7000 = 23 C8 46 00
+        assertTrue(cmds.has(byteArrayOf(0x23, 0xC8.toByte(), 0x46, 0x00)))
+        assertEquals(4, c.currentLevelIndex)
+    }
+
+    @Test
     fun updateConfig_usesNewLevels() {
         val c = ThermalController(config)
         val newCfg = ControlConfig(levels = listOf(TempLevel(25f, 10, 4500), TempLevel(35f, 50, 5000)))

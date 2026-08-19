@@ -209,6 +209,12 @@ class ControlService : Service() {
         _uiState.value = _uiState.value.copy(config = config)
         bleManager.setAutoReconnect(config.autoReconnect)
         controller.updateConfig(config)
+        // 配置变更（保存/导入）实时生效：立即按当前温度重发一次挡位命令。
+        // 即使温度未跨档，也把新风速/制冷推给设备；若尚未采到温度，控制循环下一轮兜底重发
+        _uiState.value.systemTempC?.let { t ->
+            val cmds = controller.onTemperature(t)
+            if (cmds.isNotEmpty()) bleManager.sendCommands(cmds)
+        }
     }
 
     /** 按配置的温控参考源从温度快照中选取控制温度 */
