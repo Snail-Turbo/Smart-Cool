@@ -20,6 +20,8 @@ class ThermalController(config: ControlConfig) {
 
     /** 是否已执行过首次下发（保证即使首帧就在 0 档，也会发一次命令同步设备状态） */
     private var initialized = false
+    /** 手动控制过：下次自动决策必须无条件重发（设备实际状态与曲线状态可能不一致） */
+    private var manualIntervened = false
 
     val state: ThermalState
         get() = if (currentLevelIndex == 0) ThermalState.OFF else ThermalState.RUNNING
@@ -27,8 +29,11 @@ class ThermalController(config: ControlConfig) {
     /** 输入系统温度(°C)，返回需要下发的命令列表（档位变化或首次时才有内容）。 */
     fun onTemperature(tempC: Float): List<ByteArray> {
         val idx = pickLevelIndex(tempC)
-        if (!initialized) {
+        if (!initialized || manualIntervened) {
+            // 首次决策，或手动干预过：无条件重发（手动控制改变了设备实际状态，
+            // 即使温度同档也必须切回曲线配置，否则设备停在手动档位）
             initialized = true
+            manualIntervened = false
         } else if (idx == currentLevelIndex) {
             return emptyList()
         }
@@ -41,6 +46,7 @@ class ThermalController(config: ControlConfig) {
 
     /** 手动模式：直接设风速控制值(4000~7500)与制冷档（B6X 用 0x23 手动命令）。 */
     fun onManualLevels(windLevel: Int, coldLevel: Int): List<ByteArray> {
+        manualIntervened = true
         currentWindLevel = windLevel.coerceIn(WIND_MIN, WIND_MAX)
         currentColdLevel = coldLevel.coerceIn(COLD_MIN, COLD_MAX)
         return listOf(
@@ -50,6 +56,7 @@ class ThermalController(config: ControlConfig) {
 
     /** 手动模式：仅开关。关闭 = 最低档（A 档待机）。 */
     fun onManualPower(on: Boolean): List<ByteArray> {
+        manualIntervened = true
         if (on) {
             return listOf(
                 WaspWingProtocol.manualModeCommand(currentWindLevel, currentColdLevel),

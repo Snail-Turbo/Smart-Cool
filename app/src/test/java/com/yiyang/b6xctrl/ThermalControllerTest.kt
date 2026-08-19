@@ -101,6 +101,21 @@ class ThermalControllerTest {
     }
 
     @Test
+    fun manualIntervention_thenAutoSameLevel_resends() {
+        val c = ThermalController(config)
+        c.onTemperature(41f) // D 档（制冷200 风6000）
+        c.onManualLevels(7500, 230) // 手动拉最高（设备停在手动档位）
+        // 重新开启自动温控：温度仍 41°C（同 D 档），也必须重发曲线配置，
+        // 否则设备停在手动最高档不会切回自动
+        val cmds = c.onTemperature(41f)
+        // D 档配置：制冷200 风6000 = 23 C8 3C 00
+        assertTrue(cmds.has(byteArrayOf(0x23, 0xC8.toByte(), 0x3C, 0x00)))
+        assertEquals(4, c.currentLevelIndex)
+        // 干预标记已消费：同档位再次决策恢复为空（不重复刷）
+        assertTrue(c.onTemperature(41f).isEmpty())
+    }
+
+    @Test
     fun updateConfig_sameTemp_resendsCommand() {
         val c = ThermalController(config)
         c.onTemperature(41f) // D 档（制冷200 风6000）
