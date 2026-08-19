@@ -166,18 +166,31 @@ fun SettingsScreen(
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        "档 ${levelName(i)}（${if (i == 0) "低于此温度" else "≥${lvl.thresholdC}°C 触发"}）",
+                        if (i == 0) {
+                            "档 A（待机基准档）"
+                        } else {
+                            "档 ${levelName(i)}（≥${lvl.thresholdC}°C 触发）"
+                        },
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                     )
-                    EditableSlider(
-                        label = "触发温度",
-                        suffix = "°C",
-                        value = st.threshold.floatValue,
-                        range = 20f..70f,
-                        isFloat = true,
-                        onValueChange = { st.threshold.floatValue = it },
-                    )
+                    if (i == 0) {
+                        // A 为待机基准档：切档边界由 B 档阈值决定，阈值字段不参与切档，不可编辑
+                        Text(
+                            "温度低于 B 档阈值（<${cfg.levels.getOrNull(1)?.thresholdC ?: "--"}°C）时处于本档；" +
+                                "这里只需设置待机的制冷/风速",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    } else {
+                        EditableSlider(
+                            label = "触发温度",
+                            suffix = "°C",
+                            value = st.threshold.floatValue,
+                            range = 20f..70f,
+                            isFloat = true,
+                            onValueChange = { st.threshold.floatValue = it },
+                        )
+                    }
                     EditableSlider(
                         label = "制冷档",
                         suffix = "",
@@ -246,9 +259,10 @@ fun SettingsScreen(
         Row {
             Button(
                 onClick = {
-                    val levels = levelStates.map { st ->
+                    val levels = levelStates.mapIndexed { i, st ->
                         TempLevel(
-                            thresholdC = st.threshold.floatValue,
+                            // A 档阈值不参与切档且不可编辑：保存时保持进入设置页时的值
+                            thresholdC = if (i == 0) cfg.levels[0].thresholdC else st.threshold.floatValue,
                             cold = st.cold.floatValue.toInt(),
                             wind = st.wind.floatValue.toInt(),
                         )
