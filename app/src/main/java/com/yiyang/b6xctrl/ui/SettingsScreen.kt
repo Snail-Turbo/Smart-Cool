@@ -34,6 +34,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.content.Intent
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -60,6 +65,25 @@ fun SettingsScreen(
 ) {
     val ui by viewModel.uiState.collectAsState()
     val cfg = ui.config
+    val context = LocalContext.current
+
+    // 导入：系统文件选择器选 JSON 后解析覆盖配置（成功后触发当前挡位重发）
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            val json = context.contentResolver.openInputStream(uri)
+                ?.bufferedReader()?.use { it.readText() }
+            if (json != null) {
+                if (viewModel.importConfig(json)) {
+                    Toast.makeText(context, "配置已导入并生效", Toast.LENGTH_SHORT).show()
+                    onBack()
+                } else {
+                    Toast.makeText(context, "导入失败：文件格式不正确", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     var interval by remember { mutableFloatStateOf(cfg.sampleIntervalMs.toFloat()) }
     var tempSource by remember { mutableStateOf(cfg.tempSource) }
@@ -190,6 +214,26 @@ fun SettingsScreen(
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text("显示最近命令", modifier = Modifier.weight(1f))
             Switch(checked = showRecentCommands, onCheckedChange = { showRecentCommands = it })
+        }
+
+        // 配置导出/导入（JSON 分享；导入走文件选择器，成功后触发当前挡位重发）
+        Row {
+            OutlinedButton(
+                onClick = {
+                    viewModel.exportConfig { json ->
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "application/json"
+                            putExtra(Intent.EXTRA_TEXT, json)
+                            putExtra(Intent.EXTRA_TITLE, "B6X 温控配置")
+                        }
+                        context.startActivity(Intent.createChooser(send, "导出配置"))
+                    }
+                },
+            ) { Text("导出配置") }
+            Spacer(Modifier.width(8.dp))
+            OutlinedButton(
+                onClick = { importLauncher.launch(arrayOf("application/json", "text/plain")) },
+            ) { Text("导入配置") }
         }
 
         Row {

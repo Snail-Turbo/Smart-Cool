@@ -95,6 +95,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** 导出当前配置为 JSON（从 DataStore 读最新值） */
+    fun exportConfig(callback: (String) -> Unit) {
+        viewModelScope.launch {
+            val cfg = repo.configFlow.first()
+            callback(AppRepository.encodeConfig(cfg))
+        }
+    }
+
+    /** 导入配置 JSON；解析成功则保存并走 setConfig（触发当前挡位立即重发）。返回是否解析成功。 */
+    fun importConfig(json: String): Boolean {
+        val cfg = AppRepository.decodeConfig(json) ?: return false
+        viewModelScope.launch {
+            repo.saveConfig(cfg)
+            service?.setConfig(cfg)
+            _uiState.value = _uiState.value.copy(config = cfg)
+        }
+        return true
+    }
+
     fun stopService() {
         service?.let { ControlService.stop(it) }
         _uiState.value = UiState()

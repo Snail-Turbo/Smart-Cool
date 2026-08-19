@@ -46,4 +46,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    // 单元测试环境需要真实 org.json 实现（主代码用的是 Android 平台版）
+    testImplementation(libs.org.json)
 }
