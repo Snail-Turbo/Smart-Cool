@@ -29,6 +29,8 @@ data class ControlConfig(
     ),
     val sampleIntervalMs: Long = 2000,
     val tempSource: TempSource = TempSource.BATTERY,
+    // 自动重连开关：断开后按指数退避自动恢复连接（用户手动断开不受影响）
+    val autoReconnect: Boolean = true,
     // 界面调试开关（默认关闭，可在设置页开启）
     val showStatusPacket: Boolean = false,
     val showRecentCommands: Boolean = false,

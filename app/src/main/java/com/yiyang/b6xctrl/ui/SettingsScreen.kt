@@ -64,6 +64,7 @@ fun SettingsScreen(
     var interval by remember { mutableFloatStateOf(cfg.sampleIntervalMs.toFloat()) }
     var tempSource by remember { mutableStateOf(cfg.tempSource) }
     var sourceExpanded by remember { mutableStateOf(false) }
+    var autoReconnect by remember { mutableStateOf(cfg.autoReconnect) }
     var showStatusPacket by remember { mutableStateOf(cfg.showStatusPacket) }
     var showRecentCommands by remember { mutableStateOf(cfg.showRecentCommands) }
 
@@ -165,6 +166,17 @@ fun SettingsScreen(
             steps = 8,
         )
 
+        // ===== 连接设置（自动重连开关） =====
+        Text("连接设置", style = MaterialTheme.typography.titleSmall)
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(
+                "自动重连（断开后自动恢复连接）",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Switch(checked = autoReconnect, onCheckedChange = { autoReconnect = it })
+        }
+
         // ===== 界面设置（调试信息开关） =====
         Text("界面设置", style = MaterialTheme.typography.titleSmall)
         Text(
@@ -195,6 +207,7 @@ fun SettingsScreen(
                             levels = levels,
                             sampleIntervalMs = interval.toLong(),
                             tempSource = tempSource,
+                            autoReconnect = autoReconnect,
                             showStatusPacket = showStatusPacket,
                             showRecentCommands = showRecentCommands,
                         ),
@@ -214,6 +227,7 @@ fun SettingsScreen(
                     }
                     interval = ControlConfig().sampleIntervalMs.toFloat()
                     tempSource = ControlConfig().tempSource
+                    autoReconnect = true
                     showStatusPacket = false
                     showRecentCommands = false
                 },

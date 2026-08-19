@@ -98,10 +98,12 @@ class ControlService : Service() {
         }
         startControlLoop()
         startHeartbeatLoop()
-        // 启动自动恢复连接：有记住的设备就按 MAC 直连（免扫描），并带上型号名显示
+        // 启动自动恢复连接：重连开关开启且有记住的设备才按 MAC 直连（免扫描），并带上型号名显示
         scope.launch {
+            val cfg = repo.configFlow.first()
+            bleManager.setAutoReconnect(cfg.autoReconnect)
             val addr = repo.deviceAddressFlow.first()
-            if (addr != null) {
+            if (cfg.autoReconnect && addr != null) {
                 val name = repo.deviceNameFlow.first()
                 bleManager.connectToDevice(addr, name)
             }
@@ -205,6 +207,7 @@ class ControlService : Service() {
 
     fun setConfig(config: ControlConfig) {
         _uiState.value = _uiState.value.copy(config = config)
+        bleManager.setAutoReconnect(config.autoReconnect)
         controller.updateConfig(config)
     }
 

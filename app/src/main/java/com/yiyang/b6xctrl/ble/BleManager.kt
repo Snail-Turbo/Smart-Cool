@@ -84,9 +84,11 @@ class BleManager(context: Context) {
     private var reconnectAttempts = 0
     /** 用户主动断开标志：主动断开不自动重连 */
     private var userInitiatedDisconnect = false
+    /** 自动重连开关：关闭后断开/蓝牙重开/启动恢复都不自动连接（手动连接不受影响） */
+    private var autoReconnectEnabled = true
     private val autoReconnectRunnable = object : Runnable {
         override fun run() {
-            if (userInitiatedDisconnect) return
+            if (!autoReconnectEnabled || userInitiatedDisconnect) return
             val dev = lastDevice ?: return
             connect(dev)
         }
@@ -374,9 +376,22 @@ class BleManager(context: Context) {
         writeCharacteristic = null
     }
 
+    /** 自动重连开关（设置页/磁贴可切换）。关闭时取消挂起的退避重连，避免关掉后仍自动连上。 */
+    fun setAutoReconnect(enabled: Boolean) {
+        if (autoReconnectEnabled == enabled) return
+        autoReconnectEnabled = enabled
+        if (!enabled) {
+            autoReconnecting = false
+            mainHandler.removeCallbacks(autoReconnectRunnable)
+            mainHandler.removeCallbacks(connectTimeoutRunnable)
+            reconnectAttempts = 0
+            _uiState.value = _uiState.value.copy(reconnectDelayMs = null)
+        }
+    }
+
     /** 蓝牙重新开启：取消挂起的退避重连，稍等协议栈就绪后立即重连上次设备 */
     private fun onBluetoothEnabled() {
-        if (userInitiatedDisconnect || lastDevice == null) return
+        if (!autoReconnectEnabled || userInitiatedDisconnect || lastDevice == null) return
         mainHandler.removeCallbacks(autoReconnectRunnable)
         mainHandler.removeCallbacks(connectTimeoutRunnable)
         reconnectAttempts = 0
@@ -393,7 +408,7 @@ class BleManager(context: Context) {
             connectionState = BleConnectionState.DISCONNECTED,
             deviceName = _uiState.value.deviceName,
         )
-        if (!userInitiatedDisconnect && lastDevice != null) {
+        if (!userInitiatedDisconnect && lastDevice != null && autoReconnectEnabled) {
             reconnectAttempts++
             // 指数退避：3s→6s→12s→24s→30s 封顶（用命名常量，避免 magic number）
             val delayMs = min(

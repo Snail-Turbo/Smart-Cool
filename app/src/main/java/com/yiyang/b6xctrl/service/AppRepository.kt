@@ -19,6 +19,7 @@ class AppRepository(private val context: Context) {
 
     private val keyInterval = intPreferencesKey("sample_interval_ms")
     private val keyTempSource = intPreferencesKey("temp_source")
+    private val keyAutoReconnect = booleanPreferencesKey("auto_reconnect")
     private val keyShowStatusPacket = booleanPreferencesKey("show_status_packet")
     private val keyShowRecentCommands = booleanPreferencesKey("show_recent_commands")
     private val keyDeviceAddress = stringPreferencesKey("device_address")
@@ -43,6 +44,7 @@ class AppRepository(private val context: Context) {
             levels = levels,
             sampleIntervalMs = p[keyInterval]?.toLong() ?: defaults.sampleIntervalMs,
             tempSource = TempSource.entries.getOrElse(p[keyTempSource] ?: defaults.tempSource.ordinal) { defaults.tempSource },
+            autoReconnect = p[keyAutoReconnect] ?: true,
             showStatusPacket = p[keyShowStatusPacket] ?: false,
             showRecentCommands = p[keyShowRecentCommands] ?: false,
         )
@@ -57,6 +59,7 @@ class AppRepository(private val context: Context) {
             }
             p[keyInterval] = cfg.sampleIntervalMs.toInt()
             p[keyTempSource] = cfg.tempSource.ordinal
+            p[keyAutoReconnect] = cfg.autoReconnect
             p[keyShowStatusPacket] = cfg.showStatusPacket
             p[keyShowRecentCommands] = cfg.showRecentCommands
         }
