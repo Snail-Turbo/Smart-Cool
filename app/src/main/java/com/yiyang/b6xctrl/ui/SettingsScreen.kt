@@ -39,6 +39,8 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
+import java.io.File
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -216,23 +218,32 @@ fun SettingsScreen(
             Switch(checked = showRecentCommands, onCheckedChange = { showRecentCommands = it })
         }
 
-        // 配置导出/导入（JSON 分享；导入走文件选择器，成功后触发当前挡位重发）
+        // 配置导出/导入（JSON；导出走文件分享，导入走文件选择器，成功后触发当前挡位重发）
         Row {
             OutlinedButton(
                 onClick = {
                     viewModel.exportConfig { json ->
+                        // 写临时文件走 FileProvider 分享：EXTRA_TEXT 方式在部分文件管理器保存失败
+                        val dir = File(context.cacheDir, "export").apply { mkdirs() }
+                        val file = File(dir, "b6x_config.json")
+                        file.writeText(json)
+                        val uri = FileProvider.getUriForFile(
+                            context, "${context.packageName}.fileprovider", file,
+                        )
                         val send = Intent(Intent.ACTION_SEND).apply {
                             type = "application/json"
-                            putExtra(Intent.EXTRA_TEXT, json)
-                            putExtra(Intent.EXTRA_TITLE, "B6X 温控配置")
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
                         context.startActivity(Intent.createChooser(send, "导出配置"))
                     }
                 },
+                modifier = Modifier.weight(1f),
             ) { Text("导出配置") }
             Spacer(Modifier.width(8.dp))
             OutlinedButton(
                 onClick = { importLauncher.launch(arrayOf("application/json", "text/plain")) },
+                modifier = Modifier.weight(1f),
             ) { Text("导入配置") }
         }
 
@@ -258,6 +269,7 @@ fun SettingsScreen(
                     )
                     onBack()
                 },
+                modifier = Modifier.weight(1f),
             ) { Text("保存") }
             Spacer(Modifier.width(8.dp))
             OutlinedButton(
@@ -275,10 +287,13 @@ fun SettingsScreen(
                     showStatusPacket = false
                     showRecentCommands = false
                 },
+                modifier = Modifier.weight(1f),
             ) { Text("恢复默认") }
-            Spacer(Modifier.width(8.dp))
-            OutlinedButton(onClick = onBack) { Text("返回") }
         }
+        OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("返回") }
+
+        // 底部留白：给手指下滑留空间，避免误触按钮
+        Spacer(Modifier.height(32.dp))
     }
 }
 
