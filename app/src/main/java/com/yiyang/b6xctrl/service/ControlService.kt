@@ -308,18 +308,23 @@ class ControlService : Service() {
         val s = _uiState.value
         val ble = s.ble
         val connected = ble.connectionState == BleConnectionState.CONNECTED
-        // 通知最多两行（第三行在通知栏会被折叠）：已连接=挡位/状态 + 温度；未连接=状态 + 温度
+        // 通知最多两行（第三行在通知栏会被折叠）：
+        // 已连接 = 挡位/风速(设备实际档)/制冷/连接/自动重连开关 + 冷热面/电池温度
         val status = if (connected) {
             val lvl = s.config.levels.getOrNull(s.currentLevelIndex)
             val ds = ble.deviceStatus
-            "${levelName(s.currentLevelIndex)} · 风${lvl?.wind} · 制冷${lvl?.cold} · 已连接\n" +
-                "冷面 ${fmtTemp(ds?.coldTempC)}°C · 热面 ${fmtTemp(ds?.hotTempC)}°C · 参考 ${fmtTemp(s.systemTempC)}°C"
+            val wind = ds?.windLevel ?: lvl?.wind
+            val cold = ds?.coldLevel ?: lvl?.cold
+            "${levelName(s.currentLevelIndex)} · 风速$wind · 制冷$cold · 已连接 · " +
+                "自动重连${if (s.config.autoReconnect) "开" else "关"}\n" +
+                "冷面 ${fmtTemp(ds?.coldTempC)}°C · 热面 ${fmtTemp(ds?.hotTempC)}°C · " +
+                "电池 ${fmtTemp(s.temps.batteryC)}°C"
         } else if (ble.autoReconnecting) {
             "重连中 ${(ble.reconnectDelayMs ?: 0L) / 1000L}s\n" +
-                "参考 ${fmtTemp(s.systemTempC)}°C"
+                "电池 ${fmtTemp(s.temps.batteryC)}°C"
         } else {
             "未连接 · 自动重连${if (s.config.autoReconnect) "开" else "关"}\n" +
-                "参考 ${fmtTemp(s.systemTempC)}°C"
+                "电池 ${fmtTemp(s.temps.batteryC)}°C"
         }
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("B6X 温控运行中")
@@ -340,9 +345,11 @@ class ControlService : Service() {
             s.config.autoReconnect,
             s.autoMode,
             s.currentLevelIndex,
+            ble.deviceStatus?.windLevel,
+            ble.deviceStatus?.coldLevel,
             ble.deviceStatus?.coldTempC?.let { (it / 0.5f).toInt() },
             ble.deviceStatus?.hotTempC?.let { (it / 0.5f).toInt() },
-            s.systemTempC?.let { (it / 0.5f).toInt() },
+            s.temps.batteryC?.let { (it / 0.5f).toInt() },
         ).joinToString("|")
         if (key == lastNotifiedKey) return
         lastNotifiedKey = key
