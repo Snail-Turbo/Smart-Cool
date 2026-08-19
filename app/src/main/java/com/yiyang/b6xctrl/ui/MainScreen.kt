@@ -212,8 +212,23 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
             // 手动控制（0-100%，映射 B6X 风速 4000~7500 / 制冷 1~230）
             var windPercent by remember { mutableStateOf(50) }
             var coldPercent by remember { mutableStateOf(50) }
-            val windLevel = 4000 + ((7500 - 4000) * windPercent / 100)
-            val coldLevel = 1 + ((230 - 1) * coldPercent / 100)
+            // 是否被用户拖动过（首次进入手动模式不发送初始值）
+            var windTouched by remember { mutableStateOf(false) }
+            var coldTouched by remember { mutableStateOf(false) }
+            // 滑动防抖：拖动过程只更新 UI，停顿 150ms 后才把最终值发给设备。
+            // 否则 50→70 滑杆会逐个发送 50..70 共 20 条命令，设备每条都回一次状态包
+            LaunchedEffect(windPercent) {
+                if (windTouched) {
+                    delay(150)
+                    viewModel.setManualWindLevel(4000 + ((7500 - 4000) * windPercent / 100))
+                }
+            }
+            LaunchedEffect(coldPercent) {
+                if (coldTouched) {
+                    delay(150)
+                    viewModel.setManualColdLevel(1 + ((230 - 1) * coldPercent / 100))
+                }
+            }
             ui.ble.deviceStatus?.let { s ->
                 Text(
                     "当前模式：${runModeName(s.runMode)}",
@@ -225,7 +240,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 value = windPercent.toFloat(),
                 onValueChange = {
                     windPercent = it.toInt()
-                    viewModel.setManualWindLevel(4000 + ((7500 - 4000) * windPercent / 100))
+                    windTouched = true
                 },
                 valueRange = 0f..100f,
             )
@@ -234,7 +249,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 value = coldPercent.toFloat(),
                 onValueChange = {
                     coldPercent = it.toInt()
-                    viewModel.setManualColdLevel(1 + ((230 - 1) * coldPercent / 100))
+                    coldTouched = true
                 },
                 valueRange = 0f..100f,
             )
