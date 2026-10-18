@@ -15,3 +15,6 @@ local.properties
 captures/
 .externalNativeBuild/
 .cxx/
+
+# KernelSU 构建产物
+kernelsu/*.zip

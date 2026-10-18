@@ -1,0 +1,6 @@
+id=smartcool_keepalive
+name=SmartCool Keepalive
+version=v1.0
+versionCode=1
+author=yiyang
+description=Boot-start and 30s watchdog for SmartCool (com.yiyang.b6xctrl). Bypasses ColorOS DEFER_BY_OPLUS boot deferral.
