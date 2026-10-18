@@ -53,7 +53,7 @@ class ControlService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private lateinit var bleManager: BleManager
     private lateinit var tempReader: TempReader
-    private val repo = AppRepository(this)
+    private lateinit var repo: AppRepository
     private val controller = ThermalController(ControlConfig())
     private var controlJob: Job? = null
     private var heartbeatJob: Job? = null
@@ -76,6 +76,9 @@ class ControlService : Service() {
         // （su 探测等）都放后面，避免超时崩溃。
         createNotificationChannel()
         startForegroundCompat()
+        // Service 先构造、后 attachBaseContext；DataStore 必须在 onCreate 里用
+        // applicationContext 初始化，否则 START_STICKY 重建服务时会在构造函数 NPE。
+        repo = AppRepository(applicationContext)
         bleManager = BleManager(this)
         tempReader = TempReader(this)
         _uiState.value = _uiState.value.copy(rootAvailable = tempReader.isRoot)
