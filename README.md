@@ -13,6 +13,11 @@
 
 ---
 
+## 仓库
+
+- 主仓库（AtomGit）：https://atomgit.com/li-yiyang/SmartCool
+- GitHub 镜像：https://github.com/Snail-Turbo/Smart-Cool
+
 ## 功能
 
 - ✅ **真实系统温度**：按 thermal zone type 匹配分类（CPU/GPU/DDR/CAM），过滤 `cpu-hw-trip` 等阈值假源，范围校验；电池温度三级候选链（power_supply sysfs → thermal_zone 电池 zone → 系统广播），非 root 也实时
